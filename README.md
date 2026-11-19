@@ -43,7 +43,12 @@ was frontmost when you opened the panel, so the common case is one click.
   All of it is Core Animation, so it costs no CPU.
 - **Daily total**, seven-day strip, stored on your machine and nowhere else.
 
-It needs no permissions. Window geometry comes from `CGWindowList`, which is not gated
+- **Full screen while focusing.** Ticking it puts the pinned window in macOS full
+  screen for the session and takes it back out at the end. This is the one feature
+  that asks for a permission: Accessibility, switched on by hand in System Settings and
+  again after every upgrade, because the grant is bound to the ad-hoc signature.
+
+Apart from that opt-in box it needs no permissions. Window geometry comes from `CGWindowList`, which is not gated
 by TCC — the Accessibility API would be, and macOS binds that grant to a code signature
 that changes on every ad-hoc build.
 
@@ -53,7 +58,8 @@ that changes on every ad-hoc build.
   the window id does not change. Pinning one tab and dimming its siblings would need a
   browser extension.
 - **Full-screen windows** live on their own Space, which the overlay deliberately does
-  not join — joining it blacks the display out.
+  not join — joining it blacks the display out. So a session in full screen has no
+  dim and no visible shove on that display; drifting is still counted in the log.
 - **Screenshots and screen shares are dimmed too**, because the overlay takes part in
   screen capture. It has to: a DisplayLink monitor, which is what a dual-HDMI USB-C hub
   drives on Apple silicon, is painted from a capture of a virtual display, so a window

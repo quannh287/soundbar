@@ -19,7 +19,8 @@ public struct WindowInfo: Equatable {
 
 /// Everything here reads CGWindowList, which needs no TCC grant and shows no prompt.
 /// Deliberately not AX: TCC binds that grant to the code signature, and an ad-hoc
-/// signature changes on every build, so the grant would evaporate each time.
+/// signature changes on every build, so the grant would evaporate each time. Only the
+/// opt-in full screen in `FullScreen` pays that price.
 public enum WindowTracker {
     /// Below this a window is a tooltip, shadow or scratch panel, never a focus target.
     static let minSide: CGFloat = 120

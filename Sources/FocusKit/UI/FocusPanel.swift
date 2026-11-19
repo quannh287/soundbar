@@ -60,6 +60,10 @@ struct FocusPanel: View {
             }
             .font(.subheadline)
 
+            Toggle("Full screen while focusing", isOn: $session.fullScreen)
+                .toggleStyle(.checkbox)
+                .font(.subheadline)
+
             // The width has to go on the label: a bordered button sizes to its content.
             Button { session.start() } label: {
                 Text("Start Focus").frame(maxWidth: .infinity)
@@ -69,6 +73,10 @@ struct FocusPanel: View {
         }
         .onChange(of: session.nudgeGrace) { _ in session.persist() }
         .onChange(of: session.minutes) { _ in session.persist() }
+        .onChange(of: session.fullScreen) { _ in
+            session.persist()
+            session.requestFullScreenAccess()
+        }
     }
 
     /// A plain menu, not a second segmented control: the tab picker above is the panel's
@@ -102,6 +110,12 @@ struct FocusPanel: View {
 
             if session.lostTargets {
                 Label("Pinned window is gone", systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(Palette.warning)
+            }
+
+            if session.fullScreenBlocked {
+                Label("Full screen needs SoundBar under Privacy › Accessibility.",
+                      systemImage: "exclamationmark.triangle")
                     .font(.footnote).foregroundStyle(Palette.warning)
             }
 

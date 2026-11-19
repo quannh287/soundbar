@@ -36,10 +36,15 @@ public final class FocusSession: ObservableObject {
     /// 0 means off. Drift is only meaningful because the target is pinned.
     @Published public var nudgeGrace = UserDefaults.standard.object(forKey: "focusGrace") as? Double ?? 5
 
+    @Published public var fullScreen = UserDefaults.standard.bool(forKey: "focusFullScreen")
+    /// Full screen was asked for and Accessibility is not granted to this build.
+    @Published public private(set) var fullScreenBlocked = false
+
     public var onChange: (() -> Void)?
 
     private let mixer: Mixer
     private var overlays: [FocusOverlay] = []
+    private var fullScreened: AXUIElement?
     private var tick: Timer?
     private var peekUntil: Date?
     private var popoverOpen = false
@@ -69,6 +74,11 @@ public final class FocusSession: ObservableObject {
     public func start() {
         guard !running, let first = candidate ?? WindowTracker.frontmost() else { return }
         targets = [first]
+        fullScreenBlocked = fullScreen && !FullScreen.trusted(prompt: false)
+        if fullScreen, !fullScreenBlocked {
+            fullScreened = FullScreen.enter(pid: first.pid,
+                                            bounds: WindowTracker.bounds(of: first.id) ?? first.bounds)
+        }
         if let name = presetName, let preset = mixer.presets.first(where: { $0.name == name }) {
             mixer.apply(preset)
         }
@@ -107,6 +117,8 @@ public final class FocusSession: ObservableObject {
         writeLog(ended)
         tick?.invalidate()
         tick = nil
+        fullScreened.map(FullScreen.exit)
+        fullScreened = nil
         overlays.forEach { $0.retire() }
         overlays = []
         targets = []
@@ -198,6 +210,12 @@ public final class FocusSession: ObservableObject {
             if overlay.screen === strayed { overlay.jolt() }
             overlay.flashRing()
         }
+    }
+
+    /// Asked when the box is ticked rather than at Start, so the trip to System Settings
+    /// does not happen with a session already counting down.
+    public func requestFullScreenAccess() {
+        if fullScreen { _ = FullScreen.trusted(prompt: true) }
     }
 
     // MARK: targets
@@ -299,5 +317,6 @@ public final class FocusSession: ObservableObject {
         d.set(mode.rawValue, forKey: "focusMode")
         d.set(intensity, forKey: "focusIntensity")
         d.set(nudgeGrace, forKey: "focusGrace")
+        d.set(fullScreen, forKey: "focusFullScreen")
     }
 }
