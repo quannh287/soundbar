@@ -37,6 +37,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshStatus()
     }
 
+    /// Quitting mid-session otherwise drops the whole log line and up to a minute of
+    /// unflushed stats. A no-op when nothing is running.
+    public func applicationWillTerminate(_: Notification) { session.stop(ended: "quit") }
+
     /// brew upgrade cannot touch the copy already running, so opening the new one must
     /// retire the old one — otherwise both play and the volumes add up.
     private func replaceOtherInstances() {
