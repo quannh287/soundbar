@@ -497,12 +497,16 @@ struct Panel: View {
 
 /// Three bars scaling under one CABasicAnimation each. The compositor runs them, so the
 /// app burns no CPU per frame — assigning button.image on a timer cost 2.5% of a core.
+let barsWidth: CGFloat = 15
+let barsInset: CGFloat = 6
+let barsItemLength: CGFloat = barsWidth + barsInset * 2
+
 func installBars(on button: NSStatusBarButton) {
     button.image = nil
     button.wantsLayer = true
     let host = CALayer()
     host.name = "eq"
-    host.frame = CGRect(x: 4, y: 5, width: 15, height: 16)
+    host.frame = CGRect(x: barsInset, y: 5, width: barsWidth, height: 16)
     button.layer?.addSublayer(host)
 
     for i in 0 ..< 3 {
@@ -569,8 +573,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         button.layer?.sublayers?.filter { $0.name == "eq" }.forEach { $0.removeFromSuperlayer() }
         if isPlaying {
+            // Without an image a variable-length item collapses and clips the layers.
+            item.length = barsItemLength
             installBars(on: button)
         } else {
+            item.length = NSStatusItem.variableLength
             button.image = NSImage(systemSymbolName: "water.waves.slash", accessibilityDescription: "Sounds")
         }
     }
