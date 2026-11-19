@@ -72,6 +72,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // LSMinimumSystemVersion says 13.0, and the no-argument activate() is 14+.
         if #available(macOS 14.0, *) { NSApp.activate() } else { NSApp.activate(ignoringOtherApps: true) }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // SwiftUI hands first responder to the segmented picker on open, and the focus ring
+        // is drawn by AppKit in the system accent, which no .tint reaches. Dropping the
+        // responder clears it; Tab still brings it back for keyboard users.
+        popover.contentViewController?.view.window?.makeFirstResponder(nil)
     }
 
     private func refreshStatus() {

@@ -46,5 +46,8 @@ public struct RootPanel: View {
         }
         .padding(12)
         .frame(width: 320)
+        // AppKit controls (segmented picker, prominent button, toggle, slider) paint with
+        // the system accent, so the palette only lands if the whole panel is tinted.
+        .tint(Palette.accent)
     }
 }
