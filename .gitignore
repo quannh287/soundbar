@@ -4,3 +4,7 @@ SoundBar.app/
 .specs/audit/
 .claude/worktrees/
 .specs/integrations/*/.implement-running
+
+# python bytecode cache (claude hooks)
+__pycache__/
+
