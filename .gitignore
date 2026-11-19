@@ -6,9 +6,3 @@ SoundBar.app/
 .build/
 .swiftpm/
 
-# python bytecode cache (claude hooks)
-__pycache__/
-
-.specs/audit/
-.specs/integrations/*/.implement-running
-.claude/worktrees/
