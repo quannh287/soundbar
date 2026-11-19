@@ -4,9 +4,9 @@ import Foundation
 /// point is to live with the numbers for a week before deciding which earn a row in the
 /// panel. `jq -s` over the file answers every question in the meantime.
 public enum SessionLog {
-    public static let url = cacheDir
-        .appendingPathComponent("SoundBar", isDirectory: true)
-        .appendingPathComponent("sessions.jsonl")
+    /// `cacheDir` already ends in SoundBar; appending it again buried the file one level
+    /// deeper than every jq recipe looks.
+    public static let url = cacheDir.appendingPathComponent("sessions.jsonl")
 
     private static let stamp = ISO8601DateFormatter()
 
