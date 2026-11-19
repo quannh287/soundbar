@@ -50,6 +50,12 @@ public final class FocusSession: ObservableObject {
     private var lastLiveAt = Date()
     private var awaySince: Date?
     private var lastNudgeAt: Date?
+    private var log: AttentionLog?
+    private var startedAt = Date()
+    private var nudges = 0
+    private var peeks = 0
+    /// NSRunningApplication lookup is not free at 30Hz, and a pid's name never changes.
+    private var appNames: [pid_t: String] = [:]
 
     public init(mixer: Mixer) {
         self.mixer = mixer
@@ -74,6 +80,11 @@ public final class FocusSession: ObservableObject {
         unflushed = 0
         awaySince = nil
         lastNudgeAt = nil
+        startedAt = lastTick
+        log = AttentionLog(start: lastTick)
+        nudges = 0
+        peeks = 0
+        appNames = [:]
         remainingLabel = remaining.map { shortDuration($0) } ?? ""
         persist()
         // Holes first: showing the overlays before the first tick computes them would
@@ -90,9 +101,10 @@ public final class FocusSession: ObservableObject {
         onChange?()
     }
 
-    public func stop() {
+    public func stop(ended: String = "user") {
         guard running else { return }
         flushStats()
+        writeLog(ended)
         tick?.invalidate()
         tick = nil
         overlays.forEach { $0.retire() }
@@ -119,7 +131,7 @@ public final class FocusSession: ObservableObject {
         updateHoles(now)
         checkDrift(now)
 
-        if let endsAt, now >= endsAt { return stop() }
+        if let endsAt, now >= endsAt { return stop(ended: "timer") }
 
         let label = remaining.map { shortDuration($0) } ?? ""
         if label != remainingLabel { remainingLabel = label }
@@ -162,10 +174,17 @@ public final class FocusSession: ObservableObject {
 
     private func checkDrift(_ now: Date) {
         let front = WindowTracker.frontmost()
-        let suppressed = nudgeGrace <= 0 || lostTargets || popoverOpen
-            || peekUntil != nil || NSApp.isActive || front == nil
-        guard !suppressed, let front else { return awaySince = nil }
-        guard !targets.contains(where: { $0.id == front.id }) else { return awaySince = nil }
+        let frozen = lostTargets || popoverOpen || peekUntil != nil || NSApp.isActive
+        let place: AttentionLog.Place = {
+            guard !frozen, let front else { return .unknown }
+            guard !targets.contains(where: { $0.id == front.id }) else { return .target }
+            return .away(appName(front.pid))
+        }()
+        // Sampled before the grace: a glance too short to nudge is still a switch, and
+        // it is the kind this app could not see at all until now.
+        log?.sample(place, at: now)
+
+        guard nudgeGrace > 0, case .away = place, let front else { return awaySince = nil }
 
         let since = awaySince ?? now
         awaySince = since
@@ -173,6 +192,7 @@ public final class FocusSession: ObservableObject {
         guard shouldNudge(awayFor: now.timeIntervalSince(since),
                           sinceLastNudge: sinceNudge, grace: nudgeGrace) else { return }
         lastNudgeAt = now
+        nudges += 1
         let strayed = screen(mostlyHolding: front.bounds)
         for overlay in overlays {
             if overlay.screen === strayed { overlay.jolt() }
@@ -211,6 +231,7 @@ public final class FocusSession: ObservableObject {
     public func peek(_ seconds: TimeInterval = 10) {
         guard running else { return }
         peekUntil = Date().addingTimeInterval(seconds)
+        peeks += 1
         awaySince = nil
     }
 
@@ -226,6 +247,24 @@ public final class FocusSession: ObservableObject {
     public var remaining: TimeInterval? {
         guard let endsAt else { return nil }
         return max(0, endsAt.timeIntervalSinceNow)
+    }
+
+    private func appName(_ pid: pid_t) -> String {
+        if let cached = appNames[pid] { return cached }
+        let name = WindowTracker.appName(pid)
+        appNames[pid] = name
+        return name
+    }
+
+    private func writeLog(_ ended: String) {
+        guard var log else { return }
+        let now = Date()
+        log.finish(at: now)
+        SessionLog.append(SessionLog.line(log, start: startedAt, end: now,
+                                          planned: minutes, targets: targets.count,
+                                          mode: mode.rawValue, preset: presetName,
+                                          nudges: nudges, peeks: peeks, ended: ended))
+        self.log = nil
     }
 
     private func flushStats() {
