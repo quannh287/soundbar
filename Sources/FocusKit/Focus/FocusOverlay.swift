@@ -188,7 +188,10 @@ final class FocusOverlay {
     /// Core Animation runs both of these on the compositor at the display's refresh rate.
     /// Driving them from the 30 Hz tracking tick instead gave about thirteen frames, which
     /// read as a stutter rather than a shake.
-    func shake() {
+    /// Only the display the user actually drifted to gets jolted: a display holding
+    /// neither the pinned window nor the thing that stole attention has no business
+    /// flashing.
+    func jolt() {
         guard let layer = content.layer else { return }
         let origin = layer.position
         let slide = CAKeyframeAnimation(keyPath: "position")
@@ -207,7 +210,11 @@ final class FocusOverlay {
         pulse.keyTimes = [0, 0.04, 0.3, 1]
         pulse.duration = 0.55
         layer.add(pulse, forKey: "nudgePulse")
+    }
 
+    /// Does nothing where there is no pinned window, because the ring has no path there.
+    func flashRing() {
+        guard ring.path != nil else { return }
         // Three flashes outlast the 200-600ms an exogenous cue holds attention for.
         let flash = CAKeyframeAnimation(keyPath: "opacity")
         flash.values = [0, 1, 0.25, 1, 0.25, 0.9, 0]

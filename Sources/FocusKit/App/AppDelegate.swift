@@ -25,6 +25,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.delegate = self
         item.button?.target = self
         item.button?.action = #selector(toggle)
+        // A transient popover does not reliably close itself for an accessory app, so
+        // losing active status is what dismisses it when you click another window.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.popover.performClose(nil) }
+        }
         mixer.onPlayingChange = { [weak self] in self?.refreshStatus() }
         session.onChange = { [weak self] in self?.refreshStatus() }
         refreshStatus()

@@ -129,7 +129,9 @@ public final class FocusSession: ObservableObject {
     private func updateHoles(_ now: Date) {
         refreshHoles(now)
 
-        let hidden = popoverOpen || (peekUntil.map { now < $0 } ?? false)
+        // Not hidden for the panel: a popover window sits at level 25 and the overlay at
+        // 19, so the panel was never underneath it. Only a deliberate peek hides it.
+        let hidden = peekUntil.map { now < $0 } ?? false
         if let peekUntil, now >= peekUntil { self.peekUntil = nil }
         for overlay in overlays {
             overlay.setHidden(hidden)
@@ -171,7 +173,11 @@ public final class FocusSession: ObservableObject {
         guard shouldNudge(awayFor: now.timeIntervalSince(since),
                           sinceLastNudge: sinceNudge, grace: nudgeGrace) else { return }
         lastNudgeAt = now
-        overlays.forEach { $0.shake() }
+        let strayed = screen(mostlyHolding: front.bounds)
+        for overlay in overlays {
+            if overlay.screen === strayed { overlay.jolt() }
+            overlay.flashRing()
+        }
     }
 
     // MARK: targets
@@ -208,15 +214,11 @@ public final class FocusSession: ObservableObject {
         awaySince = nil
     }
 
-    /// The panel itself sits under the overlay, so the overlay steps aside while it is open.
     public func setPopoverOpen(_ open: Bool) {
         popoverOpen = open
-        if open {
-            awaySince = nil
-            refreshCandidates()
-        }
-        guard running else { return }
-        overlays.forEach { $0.setHidden(open) }
+        guard open else { return }
+        awaySince = nil
+        refreshCandidates()
     }
 
     // MARK: plumbing
@@ -237,12 +239,7 @@ public final class FocusSession: ObservableObject {
         overlays.forEach { $0.retire() }
         guard running else { return overlays = [] }
         overlays = NSScreen.screens.map { FocusOverlay(screen: $0, mode: mode, intensity: intensity) }
-        for overlay in overlays {
-            overlay.update(holes: holes)
-            // Start is pressed from inside the panel, so the panel is open right now and
-            // the overlay would otherwise cover the thing the user is looking at.
-            overlay.setHidden(popoverOpen)
-        }
+        overlays.forEach { $0.update(holes: holes) }
     }
 
     public func applyAppearance() {

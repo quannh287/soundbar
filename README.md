@@ -37,8 +37,9 @@ was frontmost when you opened the panel, so the common case is one click.
 - **A shove when you drift.** Stay on an unpinned window past the grace period and the
   dim jolts — vertically, because peripheral vision reads vertical motion better, and it
   snaps dark in two frames because a step in contrast is what the periphery picks up at
-  all. At the same time the pinned window's outline flashes, so the warning says where to
-  go back to rather than only that you left. Repeats every 15 seconds while you stay away.
+  all. Only the display you drifted to jolts; the one holding the pinned window flashes
+  its outline instead, so the warning says where to go back to rather than only that you
+  left, and a third display stays still. Repeats every 15 seconds while you stay away.
   All of it is Core Animation, so it costs no CPU.
 - **Daily total**, seven-day strip, stored on your machine and nowhere else.
 

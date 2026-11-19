@@ -106,3 +106,42 @@ final class NudgeTests: XCTestCase {
         XCTAssertTrue(shouldNudge(awayFor: 30, sinceLastNudge: .infinity, grace: 30))
     }
 }
+
+final class ScreenPickTests: XCTestCase {
+    /// Roughly this machine: a laptop at the origin with two displays above it.
+    private let frames = [
+        CGRect(x: 0, y: 0, width: 1680, height: 1050),
+        CGRect(x: 733, y: 1050, width: 1920, height: 1080),
+        CGRect(x: -1187, y: 1050, width: 1920, height: 1080),
+    ]
+
+    func testWindowWhollyOnOneScreen() {
+        let w = CGRect(x: 800, y: 1200, width: 600, height: 400)
+        XCTAssertEqual(indexOfMostOverlap(w, in: frames), 1)
+    }
+
+    func testNegativeOriginScreen() {
+        let w = CGRect(x: -1000, y: 1100, width: 300, height: 300)
+        XCTAssertEqual(indexOfMostOverlap(w, in: frames), 2)
+    }
+
+    /// A window straddling two displays must resolve to one, not to whichever is listed
+    /// first — that is the case the jolt would otherwise fire on the wrong screen for.
+    func testStraddlingPicksTheLargerShare() {
+        // 400x250 on the laptop against 267x150 on the display above it.
+        let straddling = CGRect(x: 600, y: 800, width: 400, height: 400)
+        XCTAssertEqual(indexOfMostOverlap(straddling, in: frames), 0)
+        let other = CGRect(x: 700, y: 1000, width: 400, height: 400)
+        XCTAssertEqual(indexOfMostOverlap(other, in: frames), 1)
+    }
+
+    func testOffAllScreens() {
+        XCTAssertNil(indexOfMostOverlap(CGRect(x: 9000, y: 9000, width: 10, height: 10),
+                                        in: frames))
+    }
+
+    func testEmptyRectTouchesNothing() {
+        XCTAssertNil(indexOfMostOverlap(CGRect(x: 100, y: 100, width: 0, height: 0),
+                                        in: frames))
+    }
+}
