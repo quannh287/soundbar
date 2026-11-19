@@ -1,3 +1,6 @@
 .DS_Store
 soundbar
 SoundBar.app/
+.specs/audit/
+.claude/worktrees/
+.specs/integrations/*/.implement-running
