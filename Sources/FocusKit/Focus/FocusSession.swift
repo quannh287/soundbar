@@ -6,6 +6,10 @@ import Combine
 /// exists while a session runs — idle cost stays zero.
 let tickInterval: TimeInterval = 1.0 / 30
 
+/// Geometry is polled at a third of the tick: every read is a full CGWindowList copy, and
+/// 30 Hz of them cost ~8% of a core — the countdown needs the other ticks, tracking does not.
+let trackInterval: TimeInterval = 1.0 / 10
+
 /// CG reports no bounds while a window animates into or out of full screen. Without this
 /// grace the screen blacks out for the length of that animation.
 let lostGrace: TimeInterval = 1.0
@@ -52,6 +56,7 @@ public final class FocusSession: ObservableObject {
     private var overlays: [FocusOverlay] = []
     private var fullScreened: AXUIElement?
     private var tick: Timer?
+    private var lastTrack = Date.distantPast
     private var peekUntil: Date?
     private var popoverOpen = false
 
@@ -182,8 +187,11 @@ public final class FocusSession: ObservableObject {
         if !onBreak {
             unflushed += elapsed
             if unflushed >= statsFlush { flushStats() }
-            updateHoles(now)
-            checkDrift(now)
+            if now.timeIntervalSince(lastTrack) >= trackInterval {
+                lastTrack = now
+                updateHoles(now)
+                checkDrift(now)
+            }
         }
 
         if let endsAt, now >= endsAt {

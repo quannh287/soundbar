@@ -87,9 +87,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             next = mixer.mix.isEmpty ? .idle : .playing
         }
-        // The countdown changes every tick; only the icon is worth rebuilding, and rebuilding
-        // it would restart the animation each second.
-        button.title = session.running ? " \(session.remainingLabel)" : ""
+        // Set apart from the icon, which rebuilding on the tick would re-animate — and only
+        // on a change, or the cell redraws 30 times a second for the same string.
+        let title = session.running ? " \(session.remainingLabel)" : ""
+        if button.title != title { button.title = title }
         guard next != shown else { return }
         shown = next
 
