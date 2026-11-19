@@ -42,10 +42,10 @@ Measured with `top` and `footprint` on Apple silicon, three displays attached:
 
 | | CPU | RAM |
 |---|---|---|
-| Idle, panel never opened | ~1.4% | 19 MB |
-| After the panel has been opened once | ~1.3% | 46 MB |
-| Focus session: three overlays, 30 Hz tracking | ~1–3% | +9 MB |
-| Playing, three sounds | 1.2% (plus 2.0% coreaudiod) | 17 MB |
+| Idle, panel never opened | 0% | 14 MB |
+| After the panel has been opened once | 0% | 43 MB |
+| Focus session: three overlays, 10 Hz tracking, preset playing | ~3% | 44 MB |
+| Playing two sounds, panel closed | ~1.2% | 50 MB |
 
 RAM is `phys_footprint`, which is what Activity Monitor shows; `ps` reports roughly twice
 that because it counts shared framework pages.
@@ -54,11 +54,16 @@ The panel is built on first open rather than at launch: `sizingOptions` makes Sw
 the whole thing out to report a content size, and that one pass costs 26 MB that a menu
 bar app nobody opened does not need to pay.
 
-A focus session adds a 30 Hz poll, because reading another app's window geometry without
-Accessibility means asking `CGWindowList` and nothing pushes. That timer exists only while
+A focus session counts down at 30 Hz but reads geometry at 10 Hz, because reading another
+app's window geometry without Accessibility means asking `CGWindowList`, nothing pushes,
+and every read copies the whole window list. That timer exists only while
 a session runs, and it is registered in the common run loop modes — scheduled in the
 default mode it would stall for as long as AppKit tracks events, which includes the whole
 time this app's own popover is open.
+
+The status item is the other half of that bill: assigning `button.title` on every tick
+redrew `NSStatusBarButtonCell` thirty times a second for an unchanged string, which cost
+more than the tracking it was reporting. It is assigned only when the text differs.
 
 Reassigning the status item's image on a timer cost 2.5% of a core on its own — more than
 decoding the audio — whether the frames were drawn live or prepared in advance. The bars

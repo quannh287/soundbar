@@ -52,6 +52,19 @@ None are required. Two are optional:
 - **Accessibility** is needed only for "Full screen while focusing". Switch it on under
   System Settings › Privacy & Security › Accessibility, and again after every upgrade.
 
+## Cost
+
+Measured with `top` and `footprint` on Apple silicon, three displays attached:
+
+| | CPU | RAM |
+|---|---|---|
+| Idle, panel never opened | 0% | 14 MB |
+| After the panel has been opened once | 0% | 43 MB |
+| Focus session: three overlays, 10 Hz tracking, preset playing | ~3% | 44 MB |
+| Playing two sounds, panel closed | ~1.2% | 50 MB |
+
+Nothing is polled while idle: the tracking timer exists only during a session.
+
 ## Limits
 
 - **Windows, not tabs.** A browser is pinned as a whole window.
