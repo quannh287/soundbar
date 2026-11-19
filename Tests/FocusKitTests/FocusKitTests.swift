@@ -214,3 +214,16 @@ final class AutoMixTests: XCTestCase {
         XCTAssertNil(Preset.deal(from: ["Ocean"], avoiding: ["Ocean": 0.6]))
     }
 }
+
+final class FullScreenStripTests: XCTestCase {
+    func testToolbarStripCountsAsThePinnedWindowButOtherAppsDoNot() {
+        let screen = CGRect(x: 0, y: 0, width: 1680, height: 1050)
+        let pinned = WindowInfo(id: 1, pid: 10, bounds: screen, title: nil)
+        let strip = WindowInfo(id: 2, pid: 10, bounds: CGRect(x: 0, y: 0, width: 1680, height: 124), title: nil)
+        let sibling = WindowInfo(id: 3, pid: 10, bounds: CGRect(x: -1187, y: -1050, width: 1920, height: 1050), title: nil)
+        let other = WindowInfo(id: 4, pid: 11, bounds: strip.bounds, title: nil)
+        XCTAssertTrue(WindowTracker.isPart(strip, of: pinned, at: screen))
+        XCTAssertFalse(WindowTracker.isPart(sibling, of: pinned, at: screen))
+        XCTAssertFalse(WindowTracker.isPart(other, of: pinned, at: screen))
+    }
+}

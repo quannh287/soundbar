@@ -56,6 +56,12 @@ public enum WindowTracker {
         return CGRect(dictionaryRepresentation: dict as CFDictionary)
     }
 
+    /// In full screen the title bar and toolbar become a separate window of the same app,
+    /// and that strip — not the pinned window — is what CGWindowList reports frontmost.
+    public static func isPart(_ front: WindowInfo, of pinned: WindowInfo, at bounds: CGRect) -> Bool {
+        front.pid == pinned.pid && bounds.contains(front.bounds)
+    }
+
     /// `point` is in CG space (top-left origin), as NSEvent.mouseLocation is not.
     public static func window(at point: CGPoint) -> WindowInfo? {
         onScreen().first { $0.bounds.contains(point) }

@@ -189,7 +189,8 @@ public final class FocusSession: ObservableObject {
         let frozen = lostTargets || popoverOpen || peekUntil != nil || NSApp.isActive
         let place: AttentionLog.Place = {
             guard !frozen, let front else { return .unknown }
-            guard !targets.contains(where: { $0.id == front.id }) else { return .target }
+            guard !targets.contains(where: { $0.id == front.id }), !inFullScreenTarget(front)
+            else { return .target }
             return .away(appName(front.pid))
         }()
         // Sampled before the grace: a glance too short to nudge is still a switch, and
@@ -216,6 +217,12 @@ public final class FocusSession: ObservableObject {
     /// does not happen with a session already counting down.
     public func requestFullScreenAccess() {
         if fullScreen { _ = FullScreen.trusted(prompt: true) }
+    }
+
+    private func inFullScreenTarget(_ front: WindowInfo) -> Bool {
+        guard fullScreened != nil, let pinned = targets.first,
+              let bounds = WindowTracker.bounds(of: pinned.id) else { return false }
+        return WindowTracker.isPart(front, of: pinned, at: bounds)
     }
 
     // MARK: targets
