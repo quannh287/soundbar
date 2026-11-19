@@ -1,0 +1,27 @@
+name: bump tap
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bump formula to ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          # GitHub generates tag tarballs lazily; the first request can 404 right after the push.
+          for i in 1 2 3 4 5; do curl -fsSL "$URL" -o src.tar.gz && break || sleep 10; done
+          SHA=$(sha256sum src.tar.gz | cut -d' ' -f1)
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/quannh287/homebrew-tap.git" tap
+          cd tap
+          sed -i -e "s|^  url .*|  url \"${URL}\"|" -e "s|^  sha256 .*|  sha256 \"${SHA}\"|" Formula/soundbar.rb
+          git diff --quiet && exit 0
+          git -c user.name=github-actions -c user.email=github-actions@github.com \
+            commit -am "chore: soundbar ${TAG}"
+          git push
