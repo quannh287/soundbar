@@ -81,6 +81,26 @@ final class AttentionLogTests: XCTestCase {
         XCTAssertEqual(log.onTarget, 100, accuracy: 0.001)
     }
 
+    /// The writer creates its directory on first use and appends after that — a session
+    /// that silently dropped its line would look exactly like a session with no drift.
+    func testAppendCreatesTheDirectoryThenAppends() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sessionlog-\(UUID().uuidString)", isDirectory: true)
+        let file = dir.appendingPathComponent("sessions.jsonl")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        SessionLog.append(["switches": 1], to: file)
+        SessionLog.append(["switches": 2], to: file)
+
+        let lines = try String(contentsOf: file, encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: true)
+        XCTAssertEqual(lines.count, 2)
+        let parsed = try lines.map {
+            try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] ?? [:]
+        }
+        XCTAssertEqual(parsed.compactMap { $0["switches"] as? Int }, [1, 2])
+    }
+
     func testLineCarriesTheFieldsWorthReadingBack() {
         var log = AttentionLog(start: t0)
         log.sample(.away("Slack"), at: at(120))
