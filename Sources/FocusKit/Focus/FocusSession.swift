@@ -24,8 +24,8 @@ public final class FocusSession: ObservableObject {
     /// The window Start will pin. Seeded from whatever was frontmost when the panel
     /// opened, then overridable from the list.
     @Published public var candidate: WindowInfo?
-    /// Published rather than computed so the open panel's countdown actually moves —
-    /// and only when the minute changes, which keeps it to one republish a minute.
+    /// Published rather than computed so the open panel's countdown actually moves, and
+    /// only when the text changes: once a minute, once a second in the last minute.
     @Published public private(set) var remainingLabel = ""
     @Published public private(set) var today: Double = FocusStats.load()[FocusStats.dayKey(Date())] ?? 0
 
@@ -120,7 +120,7 @@ public final class FocusSession: ObservableObject {
         log = AttentionLog(start: now)
         nudges = 0
         peeks = 0
-        remainingLabel = remaining.map { shortDuration($0) } ?? ""
+        remainingLabel = remaining.map { countdown($0) } ?? ""
         // Holes first: showing the overlays before the first tick computes them would
         // black the whole screen out, including the window being pinned.
         refreshHoles(now)
@@ -140,7 +140,7 @@ public final class FocusSession: ObservableObject {
         holes = []
         peekUntil = nil
         endsAt = Date().addingTimeInterval(Double(breakMinutes(afterRound: round)) * 60)
-        remainingLabel = remaining.map { shortDuration($0) } ?? ""
+        remainingLabel = remaining.map { countdown($0) } ?? ""
         NSSound.beep()
         onChange?()
     }
@@ -195,7 +195,7 @@ public final class FocusSession: ObservableObject {
             return stop(ended: "timer")
         }
 
-        let label = remaining.map { shortDuration($0) } ?? ""
+        let label = remaining.map { countdown($0) } ?? ""
         if label != remainingLabel { remainingLabel = label }
         onChange?()
     }

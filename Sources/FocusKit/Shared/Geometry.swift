@@ -33,3 +33,9 @@ public func screen(mostlyHolding cg: CGRect) -> NSScreen? {
     let rect = cocoaRect(cg, screenTop: top)
     return indexOfMostOverlap(rect, in: screens.map(\.frame)).map { screens[$0] }
 }
+
+/// Counting down, not up: under a minute it falls to seconds, so the tail of a short
+/// break does not sit on "0m" for sixty seconds.
+public func countdown(_ seconds: Double) -> String {
+    seconds < 60 ? "\(Int(max(0, seconds).rounded(.up)))s" : shortDuration(seconds)
+}

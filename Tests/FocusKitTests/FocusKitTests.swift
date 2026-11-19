@@ -234,3 +234,18 @@ final class PomodoroTests: XCTestCase {
                        [5, 5, 5, 15, 5, 5, 5, 15])
     }
 }
+
+final class CountdownTests: XCTestCase {
+    func testSecondsUnderAMinute() {
+        XCTAssertEqual(countdown(59), "59s")
+        XCTAssertEqual(countdown(0.4), "1s")
+        XCTAssertEqual(countdown(0), "0s")
+        XCTAssertEqual(countdown(-5), "0s")
+    }
+
+    func testMinutesFromAMinuteUp() {
+        XCTAssertEqual(countdown(60), "1m")
+        XCTAssertEqual(countdown(5 * 60), "5m")
+        XCTAssertEqual(countdown(3600 + 60), "1h 1m")
+    }
+}
