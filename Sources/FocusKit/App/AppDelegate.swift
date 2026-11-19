@@ -12,7 +12,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// What the status item is currently showing. Compared before touching the button,
     /// because rebuilding it on every tick is exactly the per-frame work worth avoiding.
     private enum Bar: Equatable {
-        case focus(String, onBreak: Bool)
+        case focus
+        case onBreak
         case playing
         case idle
     }
@@ -82,22 +83,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = item.button else { return }
         let next: Bar
         if session.running {
-            next = .focus(session.remainingLabel, onBreak: session.onBreak)
+            next = session.onBreak ? .onBreak : .focus
         } else {
             next = mixer.mix.isEmpty ? .idle : .playing
         }
+        // The countdown changes every tick; only the icon is worth rebuilding, and rebuilding
+        // it would restart the animation each second.
+        button.title = session.running ? " \(session.remainingLabel)" : ""
         guard next != shown else { return }
         shown = next
 
         button.layer?.sublayers?.filter { $0.name == "eq" }.forEach { $0.removeFromSuperlayer() }
-        button.title = ""
+        button.imagePosition = .imageLeading
         switch next {
-        case let .focus(left, onBreak):
+        case .focus:
             item.length = NSStatusItem.variableLength
-            button.image = NSImage(systemSymbolName: onBreak ? "cup.and.saucer" : "scope",
-                                   accessibilityDescription: onBreak ? "On a break" : "Focusing")
-            button.title = " \(left)"
-            button.imagePosition = .imageLeading
+            installPulse(on: button, symbol: "scope", label: "Focusing")
+        case .onBreak:
+            item.length = NSStatusItem.variableLength
+            button.image = NSImage(systemSymbolName: "cup.and.saucer",
+                                   accessibilityDescription: "On a break")
         case .playing:
             // Without an image a variable-length item collapses and clips the layers.
             item.length = barsItemLength

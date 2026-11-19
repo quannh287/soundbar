@@ -31,3 +31,38 @@ func installBars(on button: NSStatusBarButton) {
         bar.add(pulse, forKey: "eq")
     }
 }
+
+/// Same compositor-driven trick as the bars, so a running session reads as live without
+/// the per-frame cost of reassigning button.image on the tick.
+func installPulse(on button: NSStatusBarButton, symbol: String, label: String) {
+    guard let glyph = NSImage(systemSymbolName: symbol, accessibilityDescription: label) else { return }
+    // A blank image of the glyph's size keeps AppKit laying the title out after it.
+    let blank = NSImage(size: NSSize(width: barsWidth, height: 16), flipped: false) { _ in true }
+    blank.accessibilityDescription = label
+    button.image = blank
+    button.wantsLayer = true
+
+    let host = CALayer()
+    host.name = "eq"
+    host.frame = CGRect(x: barsInset, y: 3, width: barsWidth, height: 16)
+    // A layer never picks up the template tint, so the colour is painted and masked by the symbol.
+    host.backgroundColor = NSColor.labelColor.cgColor
+    let mask = CALayer()
+    mask.frame = host.bounds
+    mask.contents = glyph
+    mask.contentsGravity = .resizeAspect
+    host.mask = mask
+    button.layer?.addSublayer(host)
+
+    // Scale alone is invisible on a 15pt glyph; the fade is what the eye actually catches.
+    for (key, from, to) in [("transform.scale", 0.68, 1.06), ("opacity", 0.35, 1.0)] {
+        let breathe = CABasicAnimation(keyPath: key)
+        breathe.fromValue = from
+        breathe.toValue = to
+        breathe.duration = 1.1
+        breathe.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        breathe.autoreverses = true
+        breathe.repeatCount = .infinity
+        host.add(breathe, forKey: key)
+    }
+}
