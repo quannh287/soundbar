@@ -496,6 +496,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var playing: Bool?
 
     func applicationDidFinishLaunching(_: Notification) {
+        replaceOtherInstances()
         popover.behavior = .transient
         let host = NSHostingController(rootView: Panel(mixer: mixer))
         // Without this the popover keeps its own default size and clips the panel's top padding.
@@ -505,6 +506,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.action = #selector(toggle)
         mixer.onPlayingChange = { [weak self] in self?.refreshIcon() }
         refreshIcon()
+    }
+
+    /// brew upgrade cannot touch the copy already running, so opening the new one must
+    /// retire the old one — otherwise both play and the volumes add up.
+    private func replaceOtherInstances() {
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        for other in NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            where other.processIdentifier != me {
+            other.terminate()
+        }
     }
 
     @objc private func toggle() {

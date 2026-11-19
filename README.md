@@ -75,9 +75,9 @@ Gatekeeper never sees a quarantined download.
 brew update && brew upgrade soundbar
 ```
 
-Homebrew replaces the bundle on disk but cannot touch the copy already running, so quit
-SoundBar from the `...` menu and open it again. With **Open at Login** on, a logout or
-reboot does the same thing.
+Homebrew replaces the bundle on disk but cannot touch the copy already running. Just open
+the new one — it retires the old instance on launch, so the two never play at once. With
+**Open at Login** on, a logout or reboot does the same thing.
 
 Check what you have against what the tap offers:
 
