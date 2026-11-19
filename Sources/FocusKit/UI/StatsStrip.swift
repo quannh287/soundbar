@@ -39,7 +39,7 @@ struct StatsStrip: View {
                         let isToday = i == data.count - 1
                         VStack(spacing: 2) {
                             Capsule()
-                                .fill(Color.accentColor.opacity(entry.seconds > 0 ? 0.7 : 0.18))
+                                .fill(Palette.accent.opacity(entry.seconds > 0 ? 0.7 : 0.18))
                                 .frame(width: 10, height: max(3, barHeight * entry.seconds / peak))
                             Text(Self.letter.string(from: entry.day))
                                 .font(isToday ? .caption2.weight(.bold) : .caption2)

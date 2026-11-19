@@ -98,10 +98,10 @@ final class FocusOverlay {
         }
         container.addSubview(content)
         ring.fillColor = nil
-        ring.strokeColor = NSColor.controlAccentColor.cgColor
+        ring.strokeColor = NSColor(Palette.accent).cgColor
         ring.lineWidth = 4
         ring.opacity = 0
-        ring.shadowColor = NSColor.controlAccentColor.cgColor
+        ring.shadowColor = NSColor(Palette.accent).cgColor
         ring.shadowRadius = 14
         ring.shadowOpacity = 1
         ring.shadowOffset = .zero

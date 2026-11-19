@@ -102,7 +102,7 @@ struct FocusPanel: View {
 
             if session.lostTargets {
                 Label("Pinned window is gone", systemImage: "exclamationmark.triangle")
-                    .font(.footnote).foregroundStyle(.orange)
+                    .font(.footnote).foregroundStyle(Palette.warning)
             }
 
             ForEach(session.targets, id: \.id) { target in

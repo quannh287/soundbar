@@ -1,10 +1,18 @@
 import SwiftUI
 
+/// Claude's palette (getdesign.md/claude/design-md): one warm coral accent and a single
+/// amber warning. Everything else stays `Color.primary`/`.secondary` so the panel still
+/// follows the system appearance behind its material.
+enum Palette {
+    static let accent = Color(.sRGB, red: 0.800, green: 0.471, blue: 0.361)   // #cc785c
+    static let warning = Color(.sRGB, red: 0.831, green: 0.627, blue: 0.090)  // #d4a017
+}
+
 /// Tiles and chips had drifted into two opacity scales for the same three states —
 /// 0.05/0.10/0.18 against 0.08/0.16/0.30. This is the one scale.
 enum Surface {
     static func fill(on: Bool, hovering: Bool = false, raised: Bool = false) -> Color {
-        on ? Color.accentColor.opacity(hovering ? 0.28 : 0.22)
+        on ? Palette.accent.opacity(hovering ? 0.28 : 0.22)
            : Color.primary.opacity((raised ? 0.14 : 0.07) + (hovering ? 0.06 : 0))
     }
 }
