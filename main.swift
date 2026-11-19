@@ -25,6 +25,24 @@ struct Sound: Identifiable, Hashable {
     }
 }
 
+struct Preset: Identifiable, Hashable {
+    let name: String
+    let mix: [String: Float]
+    var builtin = false
+    var id: String { name }
+
+    /// Every mix is one deep base plus a lighter layer over it — the shape every
+    /// ambient mixer converges on, because two sounds at equal weight fight each other.
+    static let builtin: [Preset] = [
+        Preset(name: "Deep Work", mix: ["BrownNoise": 0.7, "Rain": 0.3], builtin: true),
+        Preset(name: "Cafe", mix: ["Babble": 0.5, "Rain": 0.3], builtin: true),
+        Preset(name: "Cozy", mix: ["Fire": 0.55, "RainOnRoof": 0.4], builtin: true),
+        Preset(name: "Sleep", mix: ["Ocean": 0.5, "QuietNight": 0.35], builtin: true),
+        Preset(name: "Night", mix: ["Night": 0.55, "Stream": 0.25], builtin: true),
+        Preset(name: "Flight", mix: ["Airplane": 0.6, "PinkNoise": 0.25], builtin: true),
+    ]
+}
+
 func m4as(in dir: URL) -> [URL] {
     let f = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
     return f.filter { $0.pathExtension == "m4a" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -88,6 +106,9 @@ final class Mixer: NSObject, ObservableObject {
     @Published var muteAt: Date?
     @Published var atLogin = SMAppService.mainApp.status == .enabled
     @Published var beat = 0
+    @Published var userPresets: [Preset] = []
+
+    var presets: [Preset] { Preset.builtin + userPresets }
 
     private var loops: [String: Loop] = [:]
     private var timer: Timer?
@@ -98,6 +119,7 @@ final class Mixer: NSObject, ObservableObject {
         if let d = UserDefaults.standard.dictionary(forKey: "mix") as? [String: Double] {
             mix = d.mapValues { Float($0) }
         }
+        loadPresets()
         loadCatalog()
     }
 
@@ -132,16 +154,48 @@ final class Mixer: NSObject, ObservableObject {
     func isOn(_ name: String) -> Bool { mix[name] != nil }
 
     func toggle(_ s: Sound) {
-        if isOn(s.name) {
-            mix[s.name] = nil
-            loops[s.name] = nil
-        } else if localFiles(s.name).isEmpty {
-            download(s)
-        } else {
-            mix[s.name] = 0.8
-            loops[s.name] = Loop(s.name, volume: 0.8, master: master)
-        }
+        guard isOn(s.name) else { return enable(s, volume: 0.8) }
+        mix[s.name] = nil
+        loops[s.name] = nil
         persist()
+    }
+
+    fileprivate func enable(_ s: Sound, volume: Float) {
+        guard !localFiles(s.name).isEmpty else { return download(s, volume: volume) }
+        mix[s.name] = volume
+        loops[s.name] = Loop(s.name, volume: volume, master: master)
+        persist()
+    }
+
+    // MARK: presets
+
+    func apply(_ preset: Preset) {
+        stopAll()
+        for (name, volume) in preset.mix {
+            guard let s = catalog.first(where: { $0.name == name }) else { continue }
+            enable(s, volume: volume)
+        }
+    }
+
+    func savePreset(_ name: String) {
+        let clean = name.trimmingCharacters(in: .whitespaces)
+        guard !clean.isEmpty, !mix.isEmpty, !Preset.builtin.contains(where: { $0.name == clean }) else { return }
+        var stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
+        stored[clean] = mix.mapValues { Double($0) }
+        UserDefaults.standard.set(stored, forKey: "presets")
+        loadPresets()
+    }
+
+    func deletePreset(_ name: String) {
+        var stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
+        stored[name] = nil
+        UserDefaults.standard.set(stored, forKey: "presets")
+        loadPresets()
+    }
+
+    private func loadPresets() {
+        let stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
+        userPresets = stored.keys.sorted().map { Preset(name: $0, mix: stored[$0]!.mapValues { Float($0) }) }
     }
 
     func setVolume(_ name: String, _ v: Float) {
@@ -210,7 +264,7 @@ final class Mixer: NSObject, ObservableObject {
 
     // MARK: download
 
-    func download(_ s: Sound) {
+    func download(_ s: Sound, volume: Float = 0.8) {
         guard progress[s.name] == nil else { return }
         progress[s.name] = 0
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
@@ -218,7 +272,7 @@ final class Mixer: NSObject, ObservableObject {
             if let tmp { unpack(tmp, into: s.name) }
             Task { @MainActor in
                 self.progress[s.name] = nil
-                if !localFiles(s.name).isEmpty { self.toggle(s) }
+                if !localFiles(s.name).isEmpty { self.enable(s, volume: volume) }
             }
         }.resume()
     }
@@ -321,6 +375,50 @@ enum Bars {
     static func image(_ beat: Int) -> NSImage { images[beat % images.count] }
 }
 
+struct Presets: View {
+    @ObservedObject var mixer: Mixer
+    @State private var naming = false
+    @State private var draft = ""
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    ForEach(mixer.presets) { preset in
+                        Text(preset.name)
+                            .font(.system(size: 10))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Color.primary.opacity(preset.builtin ? 0.08 : 0.16)))
+                            .contentShape(Capsule())
+                            .onTapGesture { mixer.apply(preset) }
+                            .contextMenu {
+                                if !preset.builtin {
+                                    Button("Delete") { mixer.deletePreset(preset.name) }
+                                }
+                            }
+                    }
+                    Button { naming.toggle() } label: { Image(systemName: "plus.circle") }
+                        .buttonStyle(.plain)
+                        .disabled(mixer.mix.isEmpty)
+                        .help("Save the current mix as a preset")
+                }
+                .padding(.horizontal, 1)
+            }
+
+            if naming {
+                TextField("Preset name", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                    .onSubmit {
+                        mixer.savePreset(draft)
+                        draft = ""
+                        naming = false
+                    }
+            }
+        }
+    }
+}
+
 struct Panel: View {
     @ObservedObject var mixer: Mixer
 
@@ -331,6 +429,8 @@ struct Panel: View {
                 Slider(value: Binding(get: { mixer.master }, set: { mixer.setMaster($0) }), in: 0 ... 1)
                 Image(systemName: "speaker.wave.3.fill").font(.system(size: 11)).foregroundStyle(.secondary)
             }
+
+            Presets(mixer: mixer)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
                 ForEach(mixer.catalog) { Tile(sound: $0, mixer: mixer) }
@@ -386,6 +486,23 @@ func check() {
     let deadline = Date().addingTimeInterval(20)
     while mixer.catalog.isEmpty, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
     assert(mixer.catalog.count == 16, "expected 16 sounds, got \(mixer.catalog.count)")
+
+    // A typo in a preset's sound name is invisible at runtime: the sound is just skipped.
+    for preset in Preset.builtin {
+        for (name, volume) in preset.mix {
+            assert(mixer.catalog.contains { $0.name == name }, "\(preset.name) references unknown \(name)")
+            assert(volume > 0 && volume <= 1, "\(preset.name)/\(name) volume out of range")
+        }
+    }
+
+    let saved = mixer.mix
+    mixer.mix = ["Rain": 0.5]
+    mixer.savePreset("__selfcheck")
+    assert(mixer.presets.contains { $0.name == "__selfcheck" }, "savePreset did not round-trip")
+    mixer.deletePreset("__selfcheck")
+    assert(!mixer.presets.contains { $0.name == "__selfcheck" }, "deletePreset left a row behind")
+    mixer.mix = saved
+    print("presets: \(Preset.builtin.map(\.name).joined(separator: ", "))\n")
     for s in mixer.catalog {
         let n = localFiles(s.name).count
         print("\(s.name.padding(toLength: 12, withPad: " ", startingAt: 0)) \(s.bytes / 1_000_000) MB  "

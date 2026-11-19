@@ -26,6 +26,8 @@ Requires macOS 13+ and a Swift toolchain. No Xcode project, no dependencies.
   `/System/Library/AssetsV2` when the system already has it.
 - **Shuffle**, because Apple ships each sound as interchangeable variations —
   looping one file has an audible seam.
+- **Presets** — six built in (Deep Work, Cafe, Cozy, Sleep, Night, Flight), plus your own:
+  save the current mix from the `+` chip, remove it from its right-click menu.
 - **Timer** to mute after 30 or 60 minutes.
 - **Open at Login**, via `SMAppService`.
 - Your mix persists and resumes on launch.
