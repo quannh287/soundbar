@@ -1,29 +1,16 @@
 import SwiftUI
 
-/// The tiles and the preset chips were bare tap gestures, so the two things people click
-/// most were the only two that never answered the pointer.
-struct CardButton: ButtonStyle {
-    let hovering: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : (hovering ? 1.02 : 1))
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-            .animation(.easeOut(duration: 0.12), value: hovering)
-    }
-}
-
 struct Tile: View {
     let sound: Sound
     @ObservedObject var mixer: Mixer
-    @State private var hovering = false
 
     var body: some View {
         let on = mixer.isOn(sound.name)
         let pct = mixer.progress[sound.name]
         Button { mixer.toggle(sound) } label: { card(on: on, pct: pct) }
-            .buttonStyle(CardButton(hovering: hovering))
-            .onHover { hovering = $0 }
+            .buttonStyle(PanelButton(shape: RoundedRectangle(cornerRadius: 8),
+                                     insets: EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0),
+                                     on: on))
             .accessibilityLabel(sound.display)
             .accessibilityValue(on ? "on" : "off")
             .accessibilityAddTraits(on ? [.isSelected] : [])
@@ -36,15 +23,15 @@ struct Tile: View {
         VStack(spacing: 3) {
             ZStack {
                 Image(systemName: sound.symbol)
-                    .font(.system(size: 14))
+                    .font(.body)
                     .opacity(pct == nil ? 1 : 0.25)
                 if let pct {
-                    Text("\(Int(pct * 100))%").font(.system(size: 9, weight: .medium))
+                    Text("\(Int(pct * 100))%").font(.caption.weight(.medium))
                 }
             }
             .frame(height: 19)
 
-            Text(sound.display).font(.system(size: 9)).lineLimit(1).minimumScaleFactor(0.85)
+            Text(sound.display).font(.caption).lineLimit(1).minimumScaleFactor(0.85)
 
             if on {
                 Slider(value: Binding(get: { mixer.mix[sound.name] ?? 0.8 },
@@ -55,35 +42,23 @@ struct Tile: View {
                 // A bare size read as missing data; the arrow says it is a download.
                 Text(mixer.downloaded.contains(sound.name)
                     ? " " : "↓ \(sound.bytes / 1_000_000) MB")
-                    .font(.system(size: 8)).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
         .frame(height: 50)
-        .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
-        .background(on ? Color.accentColor.opacity(0.18)
-                       : Color.primary.opacity(hovering ? 0.10 : 0.05),
-                    in: RoundedRectangle(cornerRadius: 8))
-        .contentShape(Rectangle())
     }
 }
 
 struct PresetChip: View {
     let preset: Preset
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Text(preset.name)
-                .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Capsule().fill(Color.primary
-                    .opacity((preset.builtin ? 0.08 : 0.16) + (hovering ? 0.08 : 0))))
-                .contentShape(Capsule())
+            Text(preset.name).font(.callout.weight(.medium))
         }
-        .buttonStyle(CardButton(hovering: hovering))
-        .onHover { hovering = $0 }
+        .buttonStyle(PanelButton(shape: Capsule(), raised: !preset.builtin))
         .help("Play the \(preset.name) mix")
     }
 }
@@ -148,12 +123,10 @@ struct Presets: View {
                     }
                 } label: {
                     Label(mixer.autoEvery.map { "Auto · \($0)m" } ?? "Auto", systemImage: "shuffle")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.callout.weight(.medium))
                 }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Capsule().fill(mixer.autoEvery == nil
-                    ? Color.primary.opacity(0.08) : Color.accentColor.opacity(0.3)))
+                .chipShape(fill: Surface.fill(on: mixer.autoEvery != nil))
                 .disabled(!mixer.canAuto)
                 .help(mixer.canAuto
                     ? "Play a random pairing and change it on a timer"
@@ -164,13 +137,9 @@ struct Presets: View {
                         .contextMenu { menu(for: preset) }
                 }
                 Button { startTyping(renaming: nil) } label: {
-                    Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(Capsule().strokeBorder(Color.primary.opacity(0.25),
-                                                           style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
-                        .contentShape(Capsule())
+                    Image(systemName: "plus").font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PanelButton(shape: Capsule(), dashed: true))
                 .disabled(mixer.mix.isEmpty)
                 .accessibilityLabel("Save current mix as a preset")
                 .help("Save the current mix as a preset")
@@ -179,7 +148,7 @@ struct Presets: View {
             if typing {
                 TextField(renaming == nil ? "Preset name" : "Rename preset", text: $draft)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11))
+                    .font(.subheadline)
                     .onSubmit(commit)
                     .onExitCommand { typing = false }
             }
@@ -221,10 +190,10 @@ struct SoundPanel: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 6) {
-                Image(systemName: "speaker.fill").font(.system(size: 11)).foregroundStyle(.secondary)
+                Image(systemName: "speaker.fill").font(.subheadline).foregroundStyle(.secondary)
                 Slider(value: Binding(get: { mixer.master }, set: { mixer.setMaster($0) }), in: 0 ... 1)
                     .accessibilityLabel("Master volume")
-                Image(systemName: "speaker.wave.3.fill").font(.system(size: 11)).foregroundStyle(.secondary)
+                Image(systemName: "speaker.wave.3.fill").font(.subheadline).foregroundStyle(.secondary)
             }
 
             Presets(mixer: mixer)
@@ -242,11 +211,11 @@ struct SoundPanel: View {
                     Button("30 minutes") { mixer.mute(after: 30) }
                     Button("1 hour") { mixer.mute(after: 60) }
                 }
-                .menuStyle(.borderlessButton).fixedSize().font(.system(size: 11))
+                .menuStyle(.borderlessButton).fixedSize().font(.subheadline)
                 Spacer()
                 Button("Stop sounds") { mixer.stopAll() }.disabled(mixer.mix.isEmpty)
             }
-            .font(.system(size: 11))
+            .font(.subheadline)
         }
     }
 }

@@ -58,7 +58,7 @@ struct FocusPanel: View {
                     .accessibilityLabel("Wait before shaking")
                 }
             }
-            .font(.system(size: 11))
+            .font(.subheadline)
 
             // The width has to go on the label: a bordered button sizes to its content.
             Button { session.start() } label: {
@@ -94,7 +94,7 @@ struct FocusPanel: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Text(session.remainingLabel.isEmpty ? "Focusing" : session.remainingLabel + " left")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.headline)
                 Spacer()
                 // Not "Stop": the Sound tab has its own Stop, and these end different things.
                 Button("End focus") { session.stop() }
@@ -102,17 +102,17 @@ struct FocusPanel: View {
 
             if session.lostTargets {
                 Label("Pinned window is gone", systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 10)).foregroundStyle(.orange)
+                    .font(.footnote).foregroundStyle(.orange)
             }
 
             ForEach(session.targets, id: \.id) { target in
                 HStack(spacing: 5) {
-                    Image(systemName: "macwindow").font(.system(size: 10))
-                    Text(target.label).font(.system(size: 11)).lineLimit(1)
+                    Image(systemName: "macwindow").font(.footnote)
+                    Text(target.label).font(.subheadline).lineLimit(1)
                     Spacer()
                     if session.targets.count > 1 {
                         Button { session.drop(target.id) } label: {
-                            Image(systemName: "xmark.circle.fill").font(.system(size: 10))
+                            Image(systemName: "xmark.circle.fill").font(.footnote)
                         }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                     }
@@ -133,7 +133,7 @@ struct FocusPanel: View {
                 Button("Peek 10s") { session.peek() }
                 Spacer()
             }
-            .font(.system(size: 11))
+            .font(.subheadline)
         }
     }
 }
