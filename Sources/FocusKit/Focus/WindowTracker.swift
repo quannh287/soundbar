@@ -39,7 +39,7 @@ public enum WindowTracker {
                   bounds.width >= minSide, bounds.height >= minSide,
                   // Drops the Window Server and background agents like storeuid, which have
                   // been seen registering layer-0 windows and stealing "frontmost".
-                  NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular
+                  regularName(pid) != nil
             else { return nil }
             return WindowInfo(id: number, pid: pid, bounds: bounds,
                               title: entry[kCGWindowName as String] as? String)
@@ -62,8 +62,19 @@ public enum WindowTracker {
 
     /// kCGWindowOwnerName is nil for other processes on macOS 26 without Screen Recording,
     /// and kCGWindowName always is. The running-application list is neither gated nor empty.
-    public static func appName(_ pid: pid_t) -> String {
-        NSRunningApplication(processIdentifier: pid)?.localizedName ?? "window"
+    public static func appName(_ pid: pid_t) -> String { regularName(pid) ?? "window" }
+
+    /// NSRunningApplication lookups come back nil for a moment while another process is
+    /// launching, which showed as every row reading "window" — so a resolved pid is kept.
+    /// ponytail: never evicted, a recycled pid keeps the old name; key on launch date if it bites.
+    private static var names: [pid_t: String] = [:]
+
+    private static func regularName(_ pid: pid_t) -> String? {
+        if let hit = names[pid] { return hit }
+        guard let app = NSRunningApplication(processIdentifier: pid),
+              app.activationPolicy == .regular, let name = app.localizedName else { return nil }
+        names[pid] = name
+        return name
     }
 
     /// Two windows of one app read the same without Screen Recording, since titles are
