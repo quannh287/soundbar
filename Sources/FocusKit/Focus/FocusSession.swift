@@ -36,6 +36,12 @@ public final class FocusSession: ObservableObject {
     /// 0 means off. Drift is only meaningful because the target is pinned.
     @Published public var nudgeGrace = UserDefaults.standard.object(forKey: "focusGrace") as? Double ?? 5
 
+    @Published public var pomodoro = UserDefaults.standard.bool(forKey: "focusPomodoro")
+    /// Resting between blocks: the timer still runs, nothing is dimmed or counted.
+    @Published public private(set) var onBreak = false
+    /// Work blocks finished in this session, which is what picks the next break's length.
+    @Published public private(set) var round = 0
+
     @Published public var fullScreen = UserDefaults.standard.bool(forKey: "focusFullScreen")
     /// Full screen was asked for and Accessibility is not granted to this build.
     @Published public private(set) var fullScreenBlocked = false
@@ -74,33 +80,16 @@ public final class FocusSession: ObservableObject {
     public func start() {
         guard !running, let first = candidate ?? WindowTracker.frontmost() else { return }
         targets = [first]
-        fullScreenBlocked = fullScreen && !FullScreen.trusted(prompt: false)
-        if fullScreen, !fullScreenBlocked {
-            fullScreened = FullScreen.enter(pid: first.pid,
-                                            bounds: WindowTracker.bounds(of: first.id) ?? first.bounds)
-        }
         if let name = presetName, let preset = mixer.presets.first(where: { $0.name == name }) {
             mixer.apply(preset)
         }
         running = true
-        lostTargets = false
-        endsAt = minutes > 0 ? Date().addingTimeInterval(Double(minutes) * 60) : nil
+        round = 0
         lastTick = Date()
-        lastLiveAt = lastTick
         unflushed = 0
-        awaySince = nil
-        lastNudgeAt = nil
-        startedAt = lastTick
-        log = AttentionLog(start: lastTick)
-        nudges = 0
-        peeks = 0
         appNames = [:]
-        remainingLabel = remaining.map { shortDuration($0) } ?? ""
         persist()
-        // Holes first: showing the overlays before the first tick computes them would
-        // black the whole screen out, including the window being pinned.
-        refreshHoles(Date())
-        rebuildOverlays()
+        beginWork()
         let timer = Timer(timeInterval: tickInterval, repeats: true) { _ in
             MainActor.assumeIsolated { self.onTick() }
         }
@@ -108,7 +97,57 @@ public final class FocusSession: ObservableObject {
         // window drags, and this app's own transient popover, which is where Start lives.
         RunLoop.main.add(timer, forMode: .common)
         tick = timer
+    }
+
+    /// Entered at Start and again after every break, so a resumed block gets its own
+    /// log line, its own overlays and a fresh countdown.
+    private func beginWork() {
+        guard let first = targets.first else { return }
+        let now = Date()
+        fullScreenBlocked = fullScreen && !FullScreen.trusted(prompt: false)
+        if fullScreen, !fullScreenBlocked, fullScreened == nil {
+            fullScreened = FullScreen.enter(pid: first.pid,
+                                            bounds: WindowTracker.bounds(of: first.id) ?? first.bounds)
+        }
+        onBreak = false
+        lostTargets = false
+        endsAt = minutes > 0 ? now.addingTimeInterval(Double(minutes) * 60) : nil
+        lastLiveAt = now
+        awaySince = nil
+        lastNudgeAt = nil
+        peekUntil = nil
+        startedAt = now
+        log = AttentionLog(start: now)
+        nudges = 0
+        peeks = 0
+        remainingLabel = remaining.map { shortDuration($0) } ?? ""
+        // Holes first: showing the overlays before the first tick computes them would
+        // black the whole screen out, including the window being pinned.
+        refreshHoles(now)
+        rebuildOverlays()
         onChange?()
+    }
+
+    private func beginBreak() {
+        flushStats()
+        writeLog("pomodoro")
+        round += 1
+        onBreak = true
+        fullScreened.map(FullScreen.exit)
+        fullScreened = nil
+        overlays.forEach { $0.retire() }
+        overlays = []
+        holes = []
+        peekUntil = nil
+        endsAt = Date().addingTimeInterval(Double(breakMinutes(afterRound: round)) * 60)
+        remainingLabel = remaining.map { shortDuration($0) } ?? ""
+        NSSound.beep()
+        onChange?()
+    }
+
+    public func skipBreak() {
+        guard running, onBreak else { return }
+        beginWork()
     }
 
     public func stop(ended: String = "user") {
@@ -117,6 +156,8 @@ public final class FocusSession: ObservableObject {
         writeLog(ended)
         tick?.invalidate()
         tick = nil
+        onBreak = false
+        round = 0
         fullScreened.map(FullScreen.exit)
         fullScreened = nil
         overlays.forEach { $0.retire() }
@@ -137,13 +178,22 @@ public final class FocusSession: ObservableObject {
         let now = Date()
         let elapsed = now.timeIntervalSince(lastTick)
         lastTick = now
-        unflushed += elapsed
-        if unflushed >= statsFlush { flushStats() }
+        // Break time is neither dimmed nor credited to the day's focus total.
+        if !onBreak {
+            unflushed += elapsed
+            if unflushed >= statsFlush { flushStats() }
+            updateHoles(now)
+            checkDrift(now)
+        }
 
-        updateHoles(now)
-        checkDrift(now)
-
-        if let endsAt, now >= endsAt { return stop(ended: "timer") }
+        if let endsAt, now >= endsAt {
+            if onBreak {
+                NSSound.beep()
+                return beginWork()
+            }
+            if pomodoro, minutes > 0 { return beginBreak() }
+            return stop(ended: "timer")
+        }
 
         let label = remaining.map { shortDuration($0) } ?? ""
         if label != remainingLabel { remainingLabel = label }
@@ -325,5 +375,6 @@ public final class FocusSession: ObservableObject {
         d.set(intensity, forKey: "focusIntensity")
         d.set(nudgeGrace, forKey: "focusGrace")
         d.set(fullScreen, forKey: "focusFullScreen")
+        d.set(pomodoro, forKey: "focusPomodoro")
     }
 }

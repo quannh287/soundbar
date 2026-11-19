@@ -11,3 +11,6 @@ public func shouldNudge(awayFor: TimeInterval,
                         repeatEvery: TimeInterval = nudgeRepeat) -> Bool {
     awayFor >= grace && sinceLastNudge >= repeatEvery
 }
+
+/// Classic pomodoro: a short break after each block, a long one after every fourth.
+public func breakMinutes(afterRound round: Int) -> Int { round % 4 == 0 ? 15 : 5 }

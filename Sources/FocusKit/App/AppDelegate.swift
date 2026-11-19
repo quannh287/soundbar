@@ -12,7 +12,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// What the status item is currently showing. Compared before touching the button,
     /// because rebuilding it on every tick is exactly the per-frame work worth avoiding.
     private enum Bar: Equatable {
-        case focus(String)
+        case focus(String, onBreak: Bool)
         case playing
         case idle
     }
@@ -82,7 +82,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = item.button else { return }
         let next: Bar
         if session.running {
-            next = .focus(session.remainingLabel)
+            next = .focus(session.remainingLabel, onBreak: session.onBreak)
         } else {
             next = mixer.mix.isEmpty ? .idle : .playing
         }
@@ -92,9 +92,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         button.layer?.sublayers?.filter { $0.name == "eq" }.forEach { $0.removeFromSuperlayer() }
         button.title = ""
         switch next {
-        case let .focus(left):
+        case let .focus(left, onBreak):
             item.length = NSStatusItem.variableLength
-            button.image = NSImage(systemSymbolName: "scope", accessibilityDescription: "Focusing")
+            button.image = NSImage(systemSymbolName: onBreak ? "cup.and.saucer" : "scope",
+                                   accessibilityDescription: onBreak ? "On a break" : "Focusing")
             button.title = " \(left)"
             button.imagePosition = .imageLeading
         case .playing:

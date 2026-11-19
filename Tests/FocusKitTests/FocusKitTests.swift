@@ -227,3 +227,10 @@ final class FullScreenStripTests: XCTestCase {
         XCTAssertFalse(WindowTracker.isPart(other, of: pinned, at: screen))
     }
 }
+
+final class PomodoroTests: XCTestCase {
+    func testShortBreaksThenALongOne() {
+        XCTAssertEqual((1 ... 8).map { breakMinutes(afterRound: $0) },
+                       [5, 5, 5, 15, 5, 5, 5, 15])
+    }
+}

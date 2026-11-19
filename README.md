@@ -28,6 +28,8 @@ display dims or blurs; the pinned window stays sharp.
   30 seconds) and the dim jolts, while the pinned window flashes its outline.
 - **Add a second window** to keep something beside the pinned one without a warning.
 - **Peek** lifts the dim for 10 seconds.
+- **Pomodoro** runs block → break → block on its own: a 5-minute break after each
+  block, 15 after every fourth. Breaks are undimmed and not counted as focus.
 - **Full screen while focusing** puts the pinned window in macOS full screen for the
   session and takes it back out at the end.
 - **Daily total** and a seven-day strip, stored on your machine and nowhere else.

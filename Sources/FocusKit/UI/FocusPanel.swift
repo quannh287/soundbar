@@ -64,6 +64,10 @@ struct FocusPanel: View {
                 .toggleStyle(.checkbox)
                 .font(.subheadline)
 
+            Toggle("Pomodoro — break, then another block", isOn: $session.pomodoro)
+                .toggleStyle(.checkbox)
+                .font(.subheadline)
+
             // The width has to go on the label: a bordered button sizes to its content.
             Button { session.start() } label: {
                 Text("Start Focus").frame(maxWidth: .infinity)
@@ -73,6 +77,7 @@ struct FocusPanel: View {
         }
         .onChange(of: session.nudgeGrace) { _ in session.persist() }
         .onChange(of: session.minutes) { _ in session.persist() }
+        .onChange(of: session.pomodoro) { _ in session.persist() }
         .onChange(of: session.fullScreen) { _ in
             session.persist()
             session.requestFullScreenAccess()
@@ -101,11 +106,16 @@ struct FocusPanel: View {
     private var active: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text(session.remainingLabel.isEmpty ? "Focusing" : session.remainingLabel + " left")
-                    .font(.headline)
+                Text(header).font(.headline)
                 Spacer()
+                if session.onBreak { Button("Skip break") { session.skipBreak() } }
                 // Not "Stop": the Sound tab has its own Stop, and these end different things.
                 Button("End focus") { session.stop() }
+            }
+
+            if session.onBreak {
+                Text("Block \(session.round) done. The next one starts on its own.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
 
             if session.lostTargets {
@@ -119,6 +129,18 @@ struct FocusPanel: View {
                     .font(.footnote).foregroundStyle(Palette.warning)
             }
 
+            if !session.onBreak { working }
+        }
+    }
+
+    private var header: String {
+        let left = session.remainingLabel
+        if session.onBreak { return left.isEmpty ? "Break" : "Break — \(left) left" }
+        return left.isEmpty ? "Focusing" : left + " left"
+    }
+
+    @ViewBuilder private var working: some View {
+        VStack(alignment: .leading, spacing: 9) {
             ForEach(session.targets, id: \.id) { target in
                 HStack(spacing: 5) {
                     Image(systemName: "macwindow").font(.footnote)
