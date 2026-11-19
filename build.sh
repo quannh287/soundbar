@@ -1,12 +1,16 @@
 #!/bin/sh
 set -e
 APP=SoundBar.app
-swiftc -O -parse-as-library main.swift -o soundbar
+# --disable-sandbox and a local cache: Homebrew builds inside a sandbox that denies
+# SwiftPM its usual cache locations, and the formula runs this script verbatim.
+swift build -c release --disable-sandbox --cache-path .build/cache
+# Keeps the documented `./soundbar --list` smoke check working.
+cp .build/release/focusbar soundbar
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp soundbar "$APP/Contents/MacOS/SoundBar"
 cp AppIcon.icns "$APP/Contents/Resources/"
-# LSUIElement keeps it out of the Dock; MenuBarExtra needs a real bundle to read it.
+# LSUIElement keeps it out of the Dock; the bundle is also what SMAppService registers.
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
