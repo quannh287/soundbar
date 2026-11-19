@@ -65,35 +65,73 @@ func localFiles(_ name: String) -> [URL] {
     return own.isEmpty ? installedFiles(name) : own
 }
 
-/// One sound on endless shuffle. Apple ships each as interchangeable variations;
-/// shuffling them avoids an audible loop point.
-final class Loop {
-    private let player = AVQueuePlayer()
-    private let files: [URL]
-    private var token: NSObjectProtocol?
+/// One AVAudioEngine for every sound, not one player each: N players means N pipelines
+/// into coreaudiod, and coreaudiod's share of the CPU scaled with them.
+@MainActor
+final class Engine {
+    private let engine = AVAudioEngine()
+    private var nodes: [String: AVAudioPlayerNode] = [:]
+    private var files: [String: [URL]] = [:]
 
-    init?(_ name: String, volume: Float, master: Float) {
-        files = localFiles(name)
-        guard !files.isEmpty else { return nil }
-        player.volume = volume * master
-        token = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime, object: nil, queue: .main
-        ) { [weak self] _ in self?.fill() }
-        fill()
-        player.play()
+    var master: Float = 1 {
+        didSet { engine.mainMixerNode.outputVolume = master }
     }
 
-    deinit {
-        player.pause()
-        if let token { NotificationCenter.default.removeObserver(token) }
+    func add(_ name: String, volume: Float) {
+        if let node = nodes[name] { return node.volume = volume }
+        let list = localFiles(name)
+        guard !list.isEmpty, let probe = try? AVAudioFile(forReading: list[0]) else { return }
+
+        let node = AVAudioPlayerNode()
+        engine.attach(node)
+        engine.connect(node, to: engine.mainMixerNode, format: probe.processingFormat)
+        nodes[name] = node
+        files[name] = list
+        node.volume = volume
+
+        engine.mainMixerNode.outputVolume = master
+        if !engine.isRunning { try? engine.start() }
+        schedule(name, count: 2)
+        node.play()
     }
 
-    func setVolume(_ v: Float) { player.volume = v }
+    func remove(_ name: String) {
+        guard let node = nodes.removeValue(forKey: name) else { return }
+        files[name] = nil
+        node.stop()
+        engine.detach(node)
+        if nodes.isEmpty { engine.stop() }
+    }
 
-    private func fill() {
-        while player.items().count < 2, let f = files.shuffled().first {
-            player.insert(AVPlayerItem(url: f), after: nil)
+    func setVolume(_ name: String, _ volume: Float) { nodes[name]?.volume = volume }
+
+    func stopAll() { for name in nodes.keys { remove(name) } }
+
+    /// Apple ships each sound as interchangeable variations; shuffling them avoids an
+    /// audible loop point. Two are always queued so the seam has no gap.
+    private func schedule(_ name: String, count: Int) {
+        guard let node = nodes[name], let list = files[name] else { return }
+        for _ in 0 ..< count {
+            guard let url = list.randomElement(), let file = try? AVAudioFile(forReading: url) else { continue }
+            node.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                Task { @MainActor in self?.schedule(name, count: 1) }
+            }
         }
+    }
+}
+
+@MainActor
+final class Beat: ObservableObject {
+    @Published private(set) var frame = 0
+    private var timer: Timer?
+
+    /// Only tick while something plays; an idle menu bar should not wake the CPU.
+    func run(_ on: Bool) {
+        guard on == (timer == nil) else { return }
+        timer?.invalidate()
+        timer = on ? Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { _ in
+            Task { @MainActor in self.frame &+= 1 }
+        } : nil
     }
 }
 
@@ -105,14 +143,15 @@ final class Mixer: NSObject, ObservableObject {
     @Published var master: Float = UserDefaults.standard.object(forKey: "master") as? Float ?? 0.7
     @Published var muteAt: Date?
     @Published var atLogin = SMAppService.mainApp.status == .enabled
-    @Published var beat = 0
+    @Published var downloaded: Set<String> = []
+    @Published var animate = UserDefaults.standard.bool(forKey: "animate")
+    let beat = Beat()
     @Published var userPresets: [Preset] = []
 
     var presets: [Preset] { Preset.builtin + userPresets }
 
-    private var loops: [String: Loop] = [:]
+    private let engine = Engine()
     private var timer: Timer?
-    private var beatTimer: Timer?
 
     override init() {
         super.init()
@@ -143,6 +182,7 @@ final class Mixer: NSObject, ObservableObject {
             let sorted = seen.keys.sorted { group[$0]! < group[$1]! }
             Task { @MainActor in
                 self.catalog = sorted.compactMap { seen[$0] }
+                self.refreshDownloaded()
                 self.resume()
                 done?()
             }
@@ -156,14 +196,14 @@ final class Mixer: NSObject, ObservableObject {
     func toggle(_ s: Sound) {
         guard isOn(s.name) else { return enable(s, volume: 0.8) }
         mix[s.name] = nil
-        loops[s.name] = nil
+        engine.remove(s.name)
         persist()
     }
 
     fileprivate func enable(_ s: Sound, volume: Float) {
         guard !localFiles(s.name).isEmpty else { return download(s, volume: volume) }
         mix[s.name] = volume
-        loops[s.name] = Loop(s.name, volume: volume, master: master)
+        engine.add(s.name, volume: volume)
         persist()
     }
 
@@ -193,6 +233,12 @@ final class Mixer: NSObject, ObservableObject {
         loadPresets()
     }
 
+    /// Tile bodies must never stat the filesystem: 16 tiles x 4 frames a second is 64
+    /// directory scans plus Info.plist reads per second.
+    private func refreshDownloaded() {
+        downloaded = Set(catalog.map(\.name).filter { !localFiles($0).isEmpty })
+    }
+
     private func loadPresets() {
         let stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
         userPresets = stored.keys.sorted().map { Preset(name: $0, mix: stored[$0]!.mapValues { Float($0) }) }
@@ -200,45 +246,43 @@ final class Mixer: NSObject, ObservableObject {
 
     func setVolume(_ name: String, _ v: Float) {
         mix[name] = v
-        loops[name]?.setVolume(v * master)
+        engine.setVolume(name, v)
         persist()
     }
 
     func setMaster(_ v: Float) {
         master = v
-        for (name, vol) in mix { loops[name]?.setVolume(vol * v) }
+        engine.master = v
         persist()
     }
 
     /// Restart whatever was playing when the app last quit.
     private func resume() {
-        for (name, vol) in mix where loops[name] == nil {
-            loops[name] = Loop(name, volume: vol, master: master)
-        }
-        syncBeat()
+        engine.master = master
+        for (name, vol) in mix { engine.add(name, volume: vol) }
+        beat.run(!mix.isEmpty && animate)
     }
 
     func stopAll() {
-        loops.removeAll()
+        engine.stopAll()
         mix.removeAll()
         muteAt = nil
         timer?.invalidate()
         persist()
     }
 
-    /// Only tick while something plays; an idle menu bar should not wake the CPU 4x a second.
-    private func syncBeat() {
-        guard mix.isEmpty == (beatTimer != nil) else { return }
-        beatTimer?.invalidate()
-        beatTimer = mix.isEmpty ? nil : Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
-            Task { @MainActor in self.beat &+= 1 }
-        }
-    }
-
     private func persist() {
-        syncBeat()
+        beat.run(!mix.isEmpty && animate)
         UserDefaults.standard.set(mix.mapValues { Double($0) }, forKey: "mix")
         UserDefaults.standard.set(master, forKey: "master")
+    }
+
+    /// Redrawing the status item costs 2-3% of a core no matter how the bars are drawn,
+    /// which is more than playing the audio. Off by default; measured, not guessed.
+    func setAnimate(_ on: Bool) {
+        animate = on
+        UserDefaults.standard.set(on, forKey: "animate")
+        beat.run(!mix.isEmpty && on)
     }
 
     func setLogin(_ on: Bool) {
@@ -272,6 +316,7 @@ final class Mixer: NSObject, ObservableObject {
             if let tmp { unpack(tmp, into: s.name) }
             Task { @MainActor in
                 self.progress[s.name] = nil
+                self.refreshDownloaded()
                 if !localFiles(s.name).isEmpty { self.enable(s, volume: volume) }
             }
         }.resume()
@@ -337,7 +382,7 @@ struct Tile: View {
                                       set: { mixer.setVolume(sound.name, $0) }), in: 0 ... 1)
                     .controlSize(.mini)
             } else {
-                Text(localFiles(sound.name).isEmpty ? "\(sound.bytes / 1_000_000) MB" : " ")
+                Text(mixer.downloaded.contains(sound.name) ? " " : "\(sound.bytes / 1_000_000) MB")
                     .font(.system(size: 8)).foregroundStyle(.secondary)
             }
         }
@@ -421,6 +466,11 @@ struct Presets: View {
     }
 }
 
+struct BarIcon: View {
+    @ObservedObject var beat: Beat
+    var body: some View { Image(nsImage: Bars.image(beat.frame)) }
+}
+
 struct Panel: View {
     @ObservedObject var mixer: Mixer
 
@@ -449,6 +499,7 @@ struct Panel: View {
                 Spacer()
                 Button("Stop all") { mixer.stopAll() }.disabled(mixer.mix.isEmpty)
                 Menu {
+                    Toggle("Animate Icon", isOn: Binding(get: { mixer.animate }, set: { mixer.setAnimate($0) }))
                     Toggle("Open at Login", isOn: Binding(get: { mixer.atLogin }, set: { mixer.setLogin($0) }))
                     Divider()
                     Button("Quit") { NSApp.terminate(nil) }
@@ -473,8 +524,10 @@ struct SoundBarApp: App {
         } label: {
             if mixer.mix.isEmpty {
                 Image(systemName: "water.waves.slash")
+            } else if mixer.animate {
+                BarIcon(beat: mixer.beat)
             } else {
-                Image(nsImage: Bars.image(mixer.beat))
+                Image(systemName: "water.waves")
             }
         }
         .menuBarExtraStyle(.window)
