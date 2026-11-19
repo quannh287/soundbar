@@ -87,9 +87,11 @@ final class Mixer: NSObject, ObservableObject {
     @Published var master: Float = UserDefaults.standard.object(forKey: "master") as? Float ?? 0.7
     @Published var muteAt: Date?
     @Published var atLogin = SMAppService.mainApp.status == .enabled
+    @Published var beat = 0
 
     private var loops: [String: Loop] = [:]
     private var timer: Timer?
+    private var beatTimer: Timer?
 
     override init() {
         super.init()
@@ -159,6 +161,7 @@ final class Mixer: NSObject, ObservableObject {
         for (name, vol) in mix where loops[name] == nil {
             loops[name] = Loop(name, volume: vol, master: master)
         }
+        syncBeat()
     }
 
     func stopAll() {
@@ -169,7 +172,17 @@ final class Mixer: NSObject, ObservableObject {
         persist()
     }
 
+    /// Only tick while something plays; an idle menu bar should not wake the CPU 4x a second.
+    private func syncBeat() {
+        guard mix.isEmpty == (beatTimer != nil) else { return }
+        beatTimer?.invalidate()
+        beatTimer = mix.isEmpty ? nil : Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            Task { @MainActor in self.beat &+= 1 }
+        }
+    }
+
     private func persist() {
+        syncBeat()
         UserDefaults.standard.set(mix.mapValues { Double($0) }, forKey: "mix")
         UserDefaults.standard.set(master, forKey: "master")
     }
@@ -284,6 +297,30 @@ struct Tile: View {
     }
 }
 
+/// A MenuBarExtra label only renders Text and Image, and never runs SwiftUI animations
+/// or SF Symbol effects — so the bars are drawn into template images and stepped by a timer.
+enum Bars {
+    private static let frames: [[CGFloat]] = [[0.35, 1.0, 0.6], [1.0, 0.5, 0.85],
+                                              [0.6, 0.8, 0.4], [0.85, 0.45, 1.0]]
+
+    static let images: [NSImage] = frames.map { heights in
+        let size = NSSize(width: 15, height: 16)
+        let image = NSImage(size: size, flipped: false) { _ in
+            NSColor.black.setFill()
+            for (i, f) in heights.enumerated() {
+                let h = 13 * f
+                let bar = NSRect(x: CGFloat(i) * 5.5, y: (size.height - h) / 2, width: 3, height: h)
+                NSBezierPath(roundedRect: bar, xRadius: 1.5, yRadius: 1.5).fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    static func image(_ beat: Int) -> NSImage { images[beat % images.count] }
+}
+
 struct Panel: View {
     @ObservedObject var mixer: Mixer
 
@@ -332,7 +369,11 @@ struct SoundBarApp: App {
         MenuBarExtra {
             Panel(mixer: mixer)
         } label: {
-            Image(systemName: mixer.mix.isEmpty ? "water.waves.slash" : "water.waves")
+            if mixer.mix.isEmpty {
+                Image(systemName: "water.waves.slash")
+            } else {
+                Image(nsImage: Bars.image(mixer.beat))
+            }
         }
         .menuBarExtraStyle(.window)
     }
