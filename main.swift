@@ -319,18 +319,18 @@ struct Tile: View {
     var body: some View {
         let on = mixer.isOn(sound.name)
         let pct = mixer.progress[sound.name]
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             ZStack {
                 Image(systemName: sound.symbol)
-                    .font(.system(size: 18))
+                    .font(.system(size: 14))
                     .opacity(pct == nil ? 1 : 0.25)
                 if let pct {
-                    Text("\(Int(pct * 100))%").font(.system(size: 10, weight: .medium))
+                    Text("\(Int(pct * 100))%").font(.system(size: 9, weight: .medium))
                 }
             }
-            .frame(height: 24)
+            .frame(height: 19)
 
-            Text(sound.name).font(.system(size: 10)).lineLimit(1)
+            Text(sound.name).font(.system(size: 9)).lineLimit(1)
 
             if on {
                 Slider(value: Binding(get: { mixer.mix[sound.name] ?? 0.8 },
@@ -338,11 +338,11 @@ struct Tile: View {
                     .controlSize(.mini)
             } else {
                 Text(localFiles(sound.name).isEmpty ? "\(sound.bytes / 1_000_000) MB" : " ")
-                    .font(.system(size: 9)).foregroundStyle(.secondary)
+                    .font(.system(size: 8)).foregroundStyle(.secondary)
             }
         }
-        .frame(height: 68)
-        .padding(.vertical, 6)
+        .frame(height: 50)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
         .background(on ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05),
                     in: RoundedRectangle(cornerRadius: 8))
@@ -383,11 +383,11 @@ struct Presets: View {
     var body: some View {
         VStack(spacing: 6) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     ForEach(mixer.presets) { preset in
                         Text(preset.name)
-                            .font(.system(size: 10))
-                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .font(.system(size: 12, weight: .medium))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
                             .background(Capsule().fill(Color.primary.opacity(preset.builtin ? 0.08 : 0.16)))
                             .contentShape(Capsule())
                             .onTapGesture { mixer.apply(preset) }
@@ -397,7 +397,9 @@ struct Presets: View {
                                 }
                             }
                     }
-                    Button { naming.toggle() } label: { Image(systemName: "plus.circle") }
+                    Button { naming.toggle() } label: {
+                        Image(systemName: "plus.circle").font(.system(size: 14))
+                    }
                         .buttonStyle(.plain)
                         .disabled(mixer.mix.isEmpty)
                         .help("Save the current mix as a preset")
@@ -432,7 +434,7 @@ struct Panel: View {
 
             Presets(mixer: mixer)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: 4), spacing: 5) {
                 ForEach(mixer.catalog) { Tile(sound: $0, mixer: mixer) }
             }
 
