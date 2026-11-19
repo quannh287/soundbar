@@ -27,7 +27,8 @@ Requires macOS 13+ and a Swift toolchain. No Xcode project, no dependencies.
 - **Shuffle**, because Apple ships each sound as interchangeable variations —
   looping one file has an audible seam.
 - **Presets** — six built in (Deep Work, Cafe, Cozy, Sleep, Night, Flight), plus your own:
-  save the current mix from the `+` chip, remove it from its right-click menu.
+  save the current mix from the `+` chip; right-click one of yours to update it to the
+  current mix, rename it, or delete it. Built-ins cannot be overwritten, only copied.
 - **Animated menu bar icon** — equaliser bars while playing, run by Core Animation
   rather than a timer, so they cost no CPU.
 - **Timer** to mute after 30 or 60 minutes.

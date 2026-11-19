@@ -210,6 +210,18 @@ final class Mixer: NSObject, ObservableObject {
         loadPresets()
     }
 
+    func renamePreset(_ old: String, to new: String) {
+        let clean = new.trimmingCharacters(in: .whitespaces)
+        guard !clean.isEmpty, clean != old,
+              !Preset.builtin.contains(where: { $0.name == clean }) else { return }
+        var stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
+        guard let saved = stored[old] else { return }
+        stored[old] = nil
+        stored[clean] = saved
+        UserDefaults.standard.set(stored, forKey: "presets")
+        loadPresets()
+    }
+
     func deletePreset(_ name: String) {
         var stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
         stored[name] = nil
@@ -373,7 +385,9 @@ struct Tile: View {
 }
 struct Presets: View {
     @ObservedObject var mixer: Mixer
-    @State private var naming = false
+    /// nil while typing a new preset's name; set to the one being renamed otherwise.
+    @State private var renaming: String?
+    @State private var typing = false
     @State private var draft = ""
 
     var body: some View {
@@ -387,33 +401,54 @@ struct Presets: View {
                             .background(Capsule().fill(Color.primary.opacity(preset.builtin ? 0.08 : 0.16)))
                             .contentShape(Capsule())
                             .onTapGesture { mixer.apply(preset) }
-                            .contextMenu {
-                                if !preset.builtin {
-                                    Button("Delete") { mixer.deletePreset(preset.name) }
-                                }
-                            }
+                            .contextMenu { menu(for: preset) }
                     }
-                    Button { naming.toggle() } label: {
+                    Button { startTyping(renaming: nil) } label: {
                         Image(systemName: "plus.circle").font(.system(size: 14))
                     }
-                        .buttonStyle(.plain)
-                        .disabled(mixer.mix.isEmpty)
-                        .help("Save the current mix as a preset")
+                    .buttonStyle(.plain)
+                    .disabled(mixer.mix.isEmpty)
+                    .help("Save the current mix as a preset")
                 }
                 .padding(.horizontal, 1)
             }
 
-            if naming {
-                TextField("Preset name", text: $draft)
+            if typing {
+                TextField(renaming == nil ? "Preset name" : "Rename preset", text: $draft)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11))
-                    .onSubmit {
-                        mixer.savePreset(draft)
-                        draft = ""
-                        naming = false
-                    }
+                    .onSubmit(commit)
+                    .onExitCommand { typing = false }
             }
         }
+    }
+
+    @ViewBuilder
+    private func menu(for preset: Preset) -> some View {
+        // A built-in cannot be edited in place, but the current mix can be saved beside it.
+        if preset.builtin {
+            Button("Save Current Mix as New...") { startTyping(renaming: nil) }
+                .disabled(mixer.mix.isEmpty)
+        } else {
+            Button("Update to Current Mix") { mixer.savePreset(preset.name) }
+                .disabled(mixer.mix.isEmpty)
+            Button("Rename...") { startTyping(renaming: preset.name) }
+            Divider()
+            Button("Delete") { mixer.deletePreset(preset.name) }
+        }
+    }
+
+    private func startTyping(renaming name: String?) {
+        renaming = name
+        draft = name ?? ""
+        typing = true
+    }
+
+    private func commit() {
+        if let old = renaming { mixer.renamePreset(old, to: draft) } else { mixer.savePreset(draft) }
+        draft = ""
+        renaming = nil
+        typing = false
     }
 }
 
@@ -547,22 +582,35 @@ func check() {
     let mixer = Mixer()
     let deadline = Date().addingTimeInterval(20)
     while mixer.catalog.isEmpty, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
-    assert(mixer.catalog.count == 16, "expected 16 sounds, got \(mixer.catalog.count)")
+    precondition(mixer.catalog.count == 16, "expected 16 sounds, got \(mixer.catalog.count)")
 
     // A typo in a preset's sound name is invisible at runtime: the sound is just skipped.
     for preset in Preset.builtin {
         for (name, volume) in preset.mix {
-            assert(mixer.catalog.contains { $0.name == name }, "\(preset.name) references unknown \(name)")
-            assert(volume > 0 && volume <= 1, "\(preset.name)/\(name) volume out of range")
+            precondition(mixer.catalog.contains { $0.name == name }, "\(preset.name) references unknown \(name)")
+            precondition(volume > 0 && volume <= 1, "\(preset.name)/\(name) volume out of range")
         }
     }
 
     let saved = mixer.mix
     mixer.mix = ["Rain": 0.5]
     mixer.savePreset("__selfcheck")
-    assert(mixer.presets.contains { $0.name == "__selfcheck" }, "savePreset did not round-trip")
-    mixer.deletePreset("__selfcheck")
-    assert(!mixer.presets.contains { $0.name == "__selfcheck" }, "deletePreset left a row behind")
+    precondition(mixer.presets.contains { $0.name == "__selfcheck" }, "savePreset did not round-trip")
+
+    mixer.mix = ["Ocean": 0.9]
+    mixer.savePreset("__selfcheck")
+    let updated = mixer.presets.first { $0.name == "__selfcheck" }?.mix
+    precondition(updated?.count == 1 && updated?["Ocean"] == 0.9, "update left the old mix behind: \(updated ?? [:])")
+
+    mixer.renamePreset("__selfcheck", to: "__renamed")
+    precondition(mixer.presets.contains { $0.name == "__renamed" }, "rename did not create the new name")
+    precondition(!mixer.presets.contains { $0.name == "__selfcheck" }, "rename left the old name behind")
+
+    mixer.renamePreset("__renamed", to: "Deep Work")
+    precondition(mixer.presets.contains { $0.name == "__renamed" }, "rename onto a built-in name must be refused")
+
+    mixer.deletePreset("__renamed")
+    precondition(!mixer.presets.contains { $0.name == "__renamed" }, "deletePreset left a row behind")
     mixer.mix = saved
     print("presets: \(Preset.builtin.map(\.name).joined(separator: ", "))\n")
     for s in mixer.catalog {
