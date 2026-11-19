@@ -34,9 +34,12 @@ was frontmost when you opened the panel, so the common case is one click.
 - **Window titles are optional.** Without Screen Recording macOS withholds them, so the
   list falls back to app names, numbered when one app has several windows. Granting it
   turns those rows into real titles; nothing else changes.
-- **A shake when you drift.** Stay on an unpinned window past the grace period and the
-  cut-out shakes, then again every 15 seconds. The shake is a Core Animation keyframe,
-  so the warning costs no CPU either.
+- **A shove when you drift.** Stay on an unpinned window past the grace period and the
+  dim jolts — vertically, because peripheral vision reads vertical motion better, and it
+  snaps dark in two frames because a step in contrast is what the periphery picks up at
+  all. At the same time the pinned window's outline flashes, so the warning says where to
+  go back to rather than only that you left. Repeats every 15 seconds while you stay away.
+  All of it is Core Animation, so it costs no CPU.
 - **Daily total**, seven-day strip, stored on your machine and nowhere else.
 
 It needs no permissions. Window geometry comes from `CGWindowList`, which is not gated

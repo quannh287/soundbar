@@ -14,8 +14,14 @@ let holeCornerRadius: CGFloat = 10
 let shakeOverscan: CGFloat = 28
 
 /// A text-field shake is 8-10pt; across a 1920px screen that is half a percent and reads
-/// as nothing. The displacement is bigger and a deepening pulse carries most of the signal.
-let shakeSteps: [CGFloat] = [0, -22, 18, -14, 10, -6, 0]
+/// as nothing. Vertical leads because peripheral vision resolves vertical motion better
+/// than horizontal, and the first step is nearly instant: a sudden onset is what the
+/// periphery picks up, and detection of peripheral cues drops by half under work load.
+let shakeSteps: [CGPoint] = [
+    CGPoint(x: 0, y: 0), CGPoint(x: 5, y: -26), CGPoint(x: -4, y: 19),
+    CGPoint(x: 3, y: -13), CGPoint(x: -2, y: 8), CGPoint(x: 0, y: 0),
+]
+let shakeTimes: [NSNumber] = [0, 0.07, 0.24, 0.42, 0.64, 1]
 
 /// One click-through window per screen, punched through where the pinned windows are.
 ///
@@ -30,6 +36,10 @@ final class FocusOverlay {
     /// Overscanned, masked, and the thing that actually moves.
     private let content: NSView
     private let shape = CAShapeLayer()
+    /// Outlines the pinned window so the warning also says where to go back to. It lives
+    /// on the unmasked container, so the hole does not cut it away, and it stays still
+    /// while the plane shakes — motion against a fixed mark reads better than both moving.
+    private let ring = CAShapeLayer()
     private let mode: FocusMode
     /// Optional, not an empty array: a screen holding none of the pinned windows has no
     /// holes, and "no holes yet" has to differ from "no holes" or the first update is
@@ -87,6 +97,15 @@ final class FocusOverlay {
             content = view
         }
         container.addSubview(content)
+        ring.fillColor = nil
+        ring.strokeColor = NSColor.controlAccentColor.cgColor
+        ring.lineWidth = 4
+        ring.opacity = 0
+        ring.shadowColor = NSColor.controlAccentColor.cgColor
+        ring.shadowRadius = 14
+        ring.shadowOpacity = 1
+        ring.shadowOffset = .zero
+        container.layer?.addSublayer(ring)
         window.contentView = container
         // Intensity belongs on the view, never on the window: a window alphaValue below 1
         // is a known way to lose the behind-window blur altogether.
@@ -125,6 +144,7 @@ final class FocusOverlay {
             CATransaction.setDisableActions(true)
             shape.frame = bounds
             shape.path = path
+            setRing(local)
             CATransaction.commit()
         case .blur:
             // NSVisualEffectView ignores layer.mask; maskImage is the supported cutout.
@@ -140,7 +160,24 @@ final class FocusOverlay {
                     path.fill()
                     return true
                 }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            setRing(local)
+            CATransaction.commit()
         }
+    }
+
+    /// `holes` are in the overscanned plane's space; the ring lives on the container, so
+    /// each one shifts back by the overscan.
+    private func setRing(_ holes: [CGRect]) {
+        ring.frame = container.bounds
+        guard !holes.isEmpty else { return ring.path = nil }
+        let path = CGMutablePath()
+        for hole in holes {
+            path.addRoundedRect(in: hole.offsetBy(dx: -shakeOverscan, dy: -shakeOverscan),
+                                cornerWidth: holeCornerRadius, cornerHeight: holeCornerRadius)
+        }
+        ring.path = path
     }
 
     func setIntensity(_ value: Double) {
@@ -155,19 +192,28 @@ final class FocusOverlay {
         guard let layer = content.layer else { return }
         let origin = layer.position
         let slide = CAKeyframeAnimation(keyPath: "position")
-        slide.values = shakeSteps.map { NSValue(point: CGPoint(x: origin.x + $0, y: origin.y)) }
-        slide.duration = 0.5
-        slide.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        slide.values = shakeSteps.map {
+            NSValue(point: CGPoint(x: origin.x + $0.x, y: origin.y + $0.y))
+        }
+        slide.keyTimes = shakeTimes
+        slide.duration = 0.55
         layer.add(slide, forKey: "nudgeSlide")
 
-        // The displacement alone is subtle at screen scale; the darkening is what catches
-        // the eye, and it costs nothing extra.
+        // Snaps dark in two frames and decays: a step in contrast is an exogenous cue,
+        // a smooth pulse is not.
         let base = Float(intensity)
         let pulse = CAKeyframeAnimation(keyPath: "opacity")
-        pulse.values = [base, min(1, base * 1.7), min(1, base * 1.3), base]
-        pulse.keyTimes = [0, 0.15, 0.4, 1]
-        pulse.duration = 0.5
+        pulse.values = [base, min(1, base * 1.8), min(1, base * 1.25), base]
+        pulse.keyTimes = [0, 0.04, 0.3, 1]
+        pulse.duration = 0.55
         layer.add(pulse, forKey: "nudgePulse")
+
+        // Three flashes outlast the 200-600ms an exogenous cue holds attention for.
+        let flash = CAKeyframeAnimation(keyPath: "opacity")
+        flash.values = [0, 1, 0.25, 1, 0.25, 0.9, 0]
+        flash.keyTimes = [0, 0.05, 0.25, 0.42, 0.62, 0.78, 1]
+        flash.duration = 1.1
+        ring.add(flash, forKey: "nudgeRing")
     }
 
     func setHidden(_ value: Bool) {
