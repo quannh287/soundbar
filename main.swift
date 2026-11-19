@@ -121,21 +121,6 @@ final class Engine {
 }
 
 @MainActor
-final class Beat: ObservableObject {
-    @Published private(set) var frame = 0
-    private var timer: Timer?
-
-    /// Only tick while something plays; an idle menu bar should not wake the CPU.
-    func run(_ on: Bool) {
-        guard on == (timer == nil) else { return }
-        timer?.invalidate()
-        timer = on ? Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { _ in
-            Task { @MainActor in self.frame &+= 1 }
-        } : nil
-    }
-}
-
-@MainActor
 final class Mixer: NSObject, ObservableObject {
     @Published var catalog: [Sound] = []
     @Published var mix: [String: Float] = [:]
@@ -144,8 +129,7 @@ final class Mixer: NSObject, ObservableObject {
     @Published var muteAt: Date?
     @Published var atLogin = SMAppService.mainApp.status == .enabled
     @Published var downloaded: Set<String> = []
-    @Published var animate = UserDefaults.standard.bool(forKey: "animate")
-    let beat = Beat()
+    var onPlayingChange: (() -> Void)?
     @Published var userPresets: [Preset] = []
 
     var presets: [Preset] { Preset.builtin + userPresets }
@@ -260,7 +244,7 @@ final class Mixer: NSObject, ObservableObject {
     private func resume() {
         engine.master = master
         for (name, vol) in mix { engine.add(name, volume: vol) }
-        beat.run(!mix.isEmpty && animate)
+        onPlayingChange?()
     }
 
     func stopAll() {
@@ -272,17 +256,9 @@ final class Mixer: NSObject, ObservableObject {
     }
 
     private func persist() {
-        beat.run(!mix.isEmpty && animate)
+        onPlayingChange?()
         UserDefaults.standard.set(mix.mapValues { Double($0) }, forKey: "mix")
         UserDefaults.standard.set(master, forKey: "master")
-    }
-
-    /// Redrawing the status item costs 2-3% of a core no matter how the bars are drawn,
-    /// which is more than playing the audio. Off by default; measured, not guessed.
-    func setAnimate(_ on: Bool) {
-        animate = on
-        UserDefaults.standard.set(on, forKey: "animate")
-        beat.run(!mix.isEmpty && on)
     }
 
     func setLogin(_ on: Bool) {
@@ -395,31 +371,6 @@ struct Tile: View {
         .onTapGesture { mixer.toggle(sound) }
     }
 }
-
-/// A MenuBarExtra label only renders Text and Image, and never runs SwiftUI animations
-/// or SF Symbol effects — so the bars are drawn into template images and stepped by a timer.
-enum Bars {
-    private static let frames: [[CGFloat]] = [[0.35, 1.0, 0.6], [1.0, 0.5, 0.85],
-                                              [0.6, 0.8, 0.4], [0.85, 0.45, 1.0]]
-
-    static let images: [NSImage] = frames.map { heights in
-        let size = NSSize(width: 15, height: 16)
-        let image = NSImage(size: size, flipped: false) { _ in
-            NSColor.black.setFill()
-            for (i, f) in heights.enumerated() {
-                let h = 13 * f
-                let bar = NSRect(x: CGFloat(i) * 5.5, y: (size.height - h) / 2, width: 3, height: h)
-                NSBezierPath(roundedRect: bar, xRadius: 1.5, yRadius: 1.5).fill()
-            }
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
-
-    static func image(_ beat: Int) -> NSImage { images[beat % images.count] }
-}
-
 struct Presets: View {
     @ObservedObject var mixer: Mixer
     @State private var naming = false
@@ -466,11 +417,6 @@ struct Presets: View {
     }
 }
 
-struct BarIcon: View {
-    @ObservedObject var beat: Beat
-    var body: some View { Image(nsImage: Bars.image(beat.frame)) }
-}
-
 struct Panel: View {
     @ObservedObject var mixer: Mixer
 
@@ -499,7 +445,6 @@ struct Panel: View {
                 Spacer()
                 Button("Stop all") { mixer.stopAll() }.disabled(mixer.mix.isEmpty)
                 Menu {
-                    Toggle("Animate Icon", isOn: Binding(get: { mixer.animate }, set: { mixer.setAnimate($0) }))
                     Toggle("Open at Login", isOn: Binding(get: { mixer.atLogin }, set: { mixer.setLogin($0) }))
                     Divider()
                     Button("Quit") { NSApp.terminate(nil) }
@@ -515,22 +460,72 @@ struct Panel: View {
     }
 }
 
-struct SoundBarApp: App {
-    @StateObject private var mixer = Mixer()
+/// Three bars scaling under one CABasicAnimation each. The compositor runs them, so the
+/// app burns no CPU per frame — assigning button.image on a timer cost 2.5% of a core.
+func installBars(on button: NSStatusBarButton) {
+    button.image = nil
+    button.wantsLayer = true
+    let host = CALayer()
+    host.name = "eq"
+    host.frame = CGRect(x: 4, y: 5, width: 15, height: 16)
+    button.layer?.addSublayer(host)
 
-    var body: some Scene {
-        MenuBarExtra {
-            Panel(mixer: mixer)
-        } label: {
-            if mixer.mix.isEmpty {
-                Image(systemName: "water.waves.slash")
-            } else if mixer.animate {
-                BarIcon(beat: mixer.beat)
-            } else {
-                Image(systemName: "water.waves")
-            }
+    for i in 0 ..< 3 {
+        let bar = CALayer()
+        bar.backgroundColor = NSColor.labelColor.cgColor
+        bar.cornerRadius = 1.5
+        bar.frame = CGRect(x: CGFloat(i) * 5.5, y: 1.5, width: 3, height: 13)
+        host.addSublayer(bar)
+
+        let pulse = CABasicAnimation(keyPath: "transform.scale.y")
+        pulse.fromValue = 0.35 + 0.2 * Double(i)
+        pulse.toValue = 1.0
+        // Durations deliberately not multiples of each other, or the bars march in step.
+        pulse.duration = 0.6 + 0.17 * Double(i)
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        bar.add(pulse, forKey: "eq")
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let mixer = Mixer()
+    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let popover = NSPopover()
+    private var playing: Bool?
+
+    func applicationDidFinishLaunching(_: Notification) {
+        popover.behavior = .transient
+        let host = NSHostingController(rootView: Panel(mixer: mixer))
+        // Without this the popover keeps its own default size and clips the panel's top padding.
+        host.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = host
+        item.button?.target = self
+        item.button?.action = #selector(toggle)
+        mixer.onPlayingChange = { [weak self] in self?.refreshIcon() }
+        refreshIcon()
+    }
+
+    @objc private func toggle() {
+        guard let button = item.button else { return }
+        if popover.isShown { return popover.performClose(nil) }
+        NSApp.activate()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
+    private func refreshIcon() {
+        guard let button = item.button else { return }
+        let isPlaying = !mixer.mix.isEmpty
+        guard isPlaying != playing else { return }
+        playing = isPlaying
+
+        button.layer?.sublayers?.filter { $0.name == "eq" }.forEach { $0.removeFromSuperlayer() }
+        if isPlaying {
+            installBars(on: button)
+        } else {
+            button.image = NSImage(systemSymbolName: "water.waves.slash", accessibilityDescription: "Sounds")
         }
-        .menuBarExtraStyle(.window)
     }
 }
 
@@ -568,7 +563,11 @@ func check() {
 @main
 enum Entry {
     static func main() {
-        if CommandLine.arguments.contains("--list") { MainActor.assumeIsolated { check() } }
-        else { SoundBarApp.main() }
+        if CommandLine.arguments.contains("--list") { return MainActor.assumeIsolated { check() } }
+        let app = NSApplication.shared
+        let delegate = MainActor.assumeIsolated { AppDelegate() }
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        app.run()
     }
 }

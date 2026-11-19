@@ -28,6 +28,8 @@ Requires macOS 13+ and a Swift toolchain. No Xcode project, no dependencies.
   looping one file has an audible seam.
 - **Presets** — six built in (Deep Work, Cafe, Cozy, Sleep, Night, Flight), plus your own:
   save the current mix from the `+` chip, remove it from its right-click menu.
+- **Animated menu bar icon** — equaliser bars while playing, run by Core Animation
+  rather than a timer, so they cost no CPU.
 - **Timer** to mute after 30 or 60 minutes.
 - **Open at Login**, via `SMAppService`.
 - Your mix persists and resumes on launch.
@@ -41,11 +43,15 @@ Measured with `top`, three sounds playing, on Apple silicon:
 
 | | SoundBar | coreaudiod | RAM |
 |---|---|---|---|
-| Playing, static icon | 1.4% | 2.3% | 21 MB |
-| Playing, animated icon | ~4% | 2.3% | 22 MB |
+| Playing, three sounds | 1.2% | 2.0% | 17 MB |
 
-Redrawing the status item costs more than decoding the audio, so **Animate Icon** is off
-by default. Turn it on from the `...` menu if you want the bars.
+RAM is `phys_footprint`, which is what Activity Monitor shows; `ps` reports ~40 MB RSS
+because it counts shared framework pages.
+
+Reassigning the status item's image on a timer cost 2.5% of a core on its own — more than
+decoding the audio — whether the frames were drawn live or prepared in advance. The bars
+are `CALayer`s under a repeating `CABasicAnimation` instead, so the compositor runs them
+and the app does nothing per frame.
 
 ## Layout
 
@@ -62,6 +68,22 @@ open "$(brew --prefix)/opt/soundbar/SoundBar.app"
 
 Homebrew builds from source on your machine, so the ad-hoc signature is enough and
 Gatekeeper never sees a quarantined download.
+
+### Update
+
+```sh
+brew update && brew upgrade soundbar
+```
+
+Homebrew replaces the bundle on disk but cannot touch the copy already running, so quit
+SoundBar from the `...` menu and open it again. With **Open at Login** on, a logout or
+reboot does the same thing.
+
+Check what you have against what the tap offers:
+
+```sh
+brew info soundbar | head -3
+```
 
 ## License
 
