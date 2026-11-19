@@ -35,3 +35,17 @@ independent of the System Settings toggle. The two do not stay in sync.
 
 Everything is in `main.swift`. Downloaded sounds land in
 `~/Library/Application Support/SoundBar/`.
+
+## Install
+
+```sh
+brew install quannh287/tap/soundbar
+open "$(brew --prefix)/opt/soundbar/SoundBar.app"
+```
+
+Homebrew builds from source on your machine, so the ad-hoc signature is enough and
+Gatekeeper never sees a quarantined download.
+
+## License
+
+MIT
