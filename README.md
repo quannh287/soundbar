@@ -68,6 +68,11 @@ that changes on every ad-hoc build.
   `/System/Library/AssetsV2` when the system already has it.
 - **Shuffle**, because Apple ships each sound as interchangeable variations —
   looping one file has an audible seam.
+- **Auto** deals a pairing and changes it every 5, 15, 30 or 60 minutes, crossfading
+  rather than cutting. It deals the shape the built-in presets have — one broad bed under
+  one sparser texture, because two sounds at equal weight fight each other — never repeats
+  the pairing it just played, and only ever uses sounds already on disk, so a rotation
+  cannot start a download. Touching a sound or a preset by hand stops it.
 - **Presets** — six built in (Deep Work, Cafe, Cozy, Sleep, Night, Flight), plus your own:
   save the current mix from the `+` chip; right-click one of yours to update it to the
   current mix, rename it, or delete it. Built-ins cannot be overwritten, only copied.

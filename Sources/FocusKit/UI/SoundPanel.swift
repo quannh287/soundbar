@@ -136,6 +136,29 @@ struct Presets: View {
     var body: some View {
         VStack(spacing: 6) {
             FlowLayout(spacing: 6) {
+                Menu {
+                    if mixer.autoEvery != nil { Button("Stop rotating") { mixer.setAuto(nil) } }
+                    Button("Shuffle now") { mixer.shuffle() }
+                    Divider()
+                    ForEach([5, 15, 30, 60], id: \.self) { minutes in
+                        Button(minutes == 60 ? "Rotate every hour"
+                                             : "Rotate every \(minutes) minutes") {
+                            mixer.setAuto(minutes)
+                        }
+                    }
+                } label: {
+                    Label(mixer.autoEvery.map { "Auto · \($0)m" } ?? "Auto", systemImage: "shuffle")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(Capsule().fill(mixer.autoEvery == nil
+                    ? Color.primary.opacity(0.08) : Color.accentColor.opacity(0.3)))
+                .disabled(!mixer.canAuto)
+                .help(mixer.canAuto
+                    ? "Play a random pairing and change it on a timer"
+                    : "Download a sound first")
+
                 ForEach(mixer.presets) { preset in
                     PresetChip(preset: preset) { mixer.apply(preset) }
                         .contextMenu { menu(for: preset) }

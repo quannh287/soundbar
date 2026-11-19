@@ -145,3 +145,72 @@ final class ScreenPickTests: XCTestCase {
                                         in: frames))
     }
 }
+
+final class AutoMixTests: XCTestCase {
+    private let all = Set(Preset.beds + Preset.textures)
+
+    /// A typo in either list silently drops a sound out of the rotation forever.
+    func testPoolsAreDisjointAndCoverTheBuiltins() {
+        XCTAssertTrue(Set(Preset.beds).isDisjoint(with: Set(Preset.textures)))
+        XCTAssertEqual(all.count, Preset.beds.count + Preset.textures.count)
+        for preset in Preset.builtin {
+            for name in preset.mix.keys {
+                XCTAssertTrue(all.contains(name), "\(name) is in no auto pool")
+            }
+        }
+    }
+
+    func testNeverDealsSomethingNotDownloaded() {
+        let have: Set<String> = ["Ocean", "Rain"]
+        for _ in 0 ..< 200 {
+            guard let deal = Preset.deal(from: have, avoiding: [:]) else { continue }
+            XCTAssertTrue(Set(deal.keys).isSubset(of: have))
+        }
+    }
+
+    /// Without a bed there is nothing to sit under, so there is no mix to deal.
+    func testNoBedMeansNoDeal() {
+        XCTAssertNil(Preset.deal(from: ["Rain", "Stream"], avoiding: [:]))
+        XCTAssertNil(Preset.deal(from: [], avoiding: [:]))
+    }
+
+    func testAlwaysOneBedAndAtMostOneTexture() {
+        for _ in 0 ..< 200 {
+            guard let deal = Preset.deal(from: all, avoiding: [:]) else { continue }
+            XCTAssertEqual(deal.keys.filter(Preset.beds.contains).count, 1)
+            XCTAssertLessThanOrEqual(deal.keys.filter(Preset.textures.contains).count, 1)
+        }
+    }
+
+    /// The bed has to stay under the texture, or the two fight each other.
+    func testVolumesKeepTheBedUnderTheTexture() {
+        for _ in 0 ..< 200 {
+            guard let deal = Preset.deal(from: all, avoiding: [:]) else { continue }
+            for (name, volume) in deal where Preset.beds.contains(name) {
+                XCTAssertTrue((0.5 ... 0.7).contains(volume), "bed at \(volume)")
+            }
+            for (name, volume) in deal where Preset.textures.contains(name) {
+                XCTAssertTrue((0.25 ... 0.4).contains(volume), "texture at \(volume)")
+            }
+            let bed = deal.first { Preset.beds.contains($0.key) }!.value
+            let texture = deal.first { Preset.textures.contains($0.key) }?.value ?? 0
+            XCTAssertGreaterThan(bed, texture)
+        }
+    }
+
+    func testNeverRepeatsThePairingItWasGiven() {
+        var current: [String: Float] = ["Ocean": 0.6, "Rain": 0.3]
+        for _ in 0 ..< 200 {
+            guard let deal = Preset.deal(from: all, avoiding: current) else {
+                return XCTFail("ran out of pairings with every sound available")
+            }
+            XCTAssertNotEqual(Set(deal.keys), Set(current.keys))
+            current = deal
+        }
+    }
+
+    /// One bed, nothing else: the only pairing is the one already playing.
+    func testGivesUpWhenNothingNewIsPossible() {
+        XCTAssertNil(Preset.deal(from: ["Ocean"], avoiding: ["Ocean": 0.6]))
+    }
+}

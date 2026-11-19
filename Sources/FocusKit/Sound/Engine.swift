@@ -40,6 +40,38 @@ final class Engine {
 
     func setVolume(_ name: String, _ volume: Float) { nodes[name]?.volume = volume }
 
+    private var fade: Timer?
+
+    /// Swapping the mix outright is a hard cut every rotation, which is exactly the kind
+    /// of audible seam the shuffling above exists to avoid. Ramps both directions at once.
+    func crossfade(to target: [String: Float], seconds: Double) {
+        fade?.invalidate()
+        var from: [String: Float] = [:]
+        for name in Set(nodes.keys).union(target.keys) {
+            from[name] = nodes[name]?.volume ?? 0
+            if nodes[name] == nil { add(name, volume: 0) }
+        }
+        let steps = 30
+        var step = 0
+        let timer = Timer(timeInterval: seconds / Double(steps), repeats: true) { [weak self] t in
+            MainActor.assumeIsolated {
+                guard let self else { return t.invalidate() }
+                step += 1
+                let progress = Float(min(1, Double(step) / Double(steps)))
+                for (name, start) in from {
+                    let end = target[name] ?? 0
+                    self.setVolume(name, start + (end - start) * progress)
+                }
+                guard step >= steps else { return }
+                t.invalidate()
+                self.fade = nil
+                for name in from.keys where target[name] == nil { self.remove(name) }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        fade = timer
+    }
+
     func stopAll() { for name in nodes.keys { remove(name) } }
 
     /// Apple ships each sound as interchangeable variations; shuffling them avoids an

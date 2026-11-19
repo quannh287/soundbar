@@ -13,11 +13,15 @@ public final class Mixer: NSObject, ObservableObject {
     @Published public var downloaded: Set<String> = []
     var onPlayingChange: (() -> Void)?
     @Published public var userPresets: [Preset] = []
+    /// Minutes between rotations; nil is off. Persisted, so it survives a relaunch.
+    @Published public var autoEvery: Int? = UserDefaults.standard.object(forKey: "autoEvery") as? Int
+    @Published public var autoNext: Date?
 
     public var presets: [Preset] { Preset.builtin + userPresets }
 
     private let engine = Engine()
     private var timer: Timer?
+    private var autoTimer: Timer?
 
     override public init() {
         super.init()
@@ -60,6 +64,8 @@ public final class Mixer: NSObject, ObservableObject {
     public func isOn(_ name: String) -> Bool { mix[name] != nil }
 
     public func toggle(_ s: Sound) {
+        // Touching a sound by hand is a decision; the rotation stops arguing with it.
+        setAuto(nil)
         guard isOn(s.name) else { return enable(s, volume: 0.8) }
         mix[s.name] = nil
         engine.remove(s.name)
@@ -76,6 +82,7 @@ public final class Mixer: NSObject, ObservableObject {
     // MARK: presets
 
     public func apply(_ preset: Preset) {
+        setAuto(nil)
         stopAll()
         for (name, volume) in preset.mix {
             guard let s = catalog.first(where: { $0.name == name }) else { continue }
@@ -142,6 +149,10 @@ public final class Mixer: NSObject, ObservableObject {
     }
 
     public func stopAll() {
+        autoTimer?.invalidate()
+        autoTimer = nil
+        autoEvery = nil
+        autoNext = nil
         engine.stopAll()
         mix.removeAll()
         muteAt = nil
@@ -164,6 +175,36 @@ public final class Mixer: NSObject, ObservableObject {
         // Read back rather than trusting the call: an unsigned or relocated bundle silently stays off.
         atLogin = SMAppService.mainApp.status == .enabled
     }
+
+    // MARK: auto
+
+    public func setAuto(_ minutes: Int?) {
+        autoTimer?.invalidate()
+        autoTimer = nil
+        autoEvery = minutes
+        UserDefaults.standard.set(minutes, forKey: "autoEvery")
+        guard let minutes else { return autoNext = nil }
+        shuffle()
+        let timer = Timer(timeInterval: Double(minutes) * 60, repeats: true) { _ in
+            MainActor.assumeIsolated { self.shuffle() }
+        }
+        // .common, or the rotation stalls for as long as any menu is open.
+        RunLoop.main.add(timer, forMode: .common)
+        autoTimer = timer
+    }
+
+    /// Deals from what is already downloaded only — a rotation that started a 60 MB
+    /// fetch on its own would be a nasty surprise on a metered connection.
+    public func shuffle() {
+        guard let next = Preset.deal(from: downloaded, avoiding: mix) else { return }
+        engine.master = master
+        engine.crossfade(to: next, seconds: 2)
+        mix = next
+        if let autoEvery { autoNext = Date().addingTimeInterval(Double(autoEvery) * 60) }
+        persist()
+    }
+
+    public var canAuto: Bool { !Preset.beds.filter(downloaded.contains).isEmpty }
 
     // MARK: timer
 

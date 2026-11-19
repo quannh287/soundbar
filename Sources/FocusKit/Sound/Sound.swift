@@ -46,6 +46,32 @@ public struct Preset: Identifiable, Hashable {
         Preset(name: "Night", mix: ["Night": 0.55, "Stream": 0.25], builtin: true),
         Preset(name: "Flight", mix: ["Airplane": 0.6, "PinkNoise": 0.25], builtin: true),
     ]
+
+    /// Auto mode deals the same shape the built-ins have rather than picking at random:
+    /// a bed is broad enough to sit under something, a texture is sparse enough to sit on
+    /// top, and two of either kind at once just fight each other.
+    static let beds = ["BrownNoise", "PinkNoise", "WhiteNoise", "Ocean", "Fire",
+                       "Airplane", "Bus", "Train", "Boat", "Babble"]
+    static let textures = ["Rain", "RainOnRoof", "Stream", "Night", "QuietNight", "Steam"]
+
+    /// `available` is what is already on disk: a rotation must never start a download.
+    /// Returns nil when nothing playable is left, and avoids dealing `current` again.
+    public static func deal(from available: Set<String>,
+                            avoiding current: [String: Float]) -> [String: Float]? {
+        let beds = Self.beds.filter(available.contains)
+        let textures = Self.textures.filter(available.contains)
+        guard !beds.isEmpty else { return nil }
+
+        for _ in 0 ..< 8 {
+            var next: [String: Float] = [:]
+            next[beds.randomElement()!] = Float.random(in: 0.5 ... 0.7)
+            if let texture = textures.randomElement(), Bool.random() || textures.count > 1 {
+                next[texture] = Float.random(in: 0.25 ... 0.4)
+            }
+            if Set(next.keys) != Set(current.keys) { return next }
+        }
+        return nil
+    }
 }
 
 func m4as(in dir: URL) -> [URL] {
