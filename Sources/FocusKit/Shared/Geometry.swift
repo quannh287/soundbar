@@ -39,3 +39,21 @@ public func screen(mostlyHolding cg: CGRect) -> NSScreen? {
 public func countdown(_ seconds: Double) -> String {
     seconds < 60 ? "\(Int(max(0, seconds).rounded(.up)))s" : shortDuration(seconds)
 }
+
+/// Which holes to punch now, given the pinned windows CGWindowList can currently see.
+/// A window it cannot see — on another Desktop, minimised, or mid-full-screen-animation
+/// — keeps its last known hole for `grace`. Held per window and not for the set, because
+/// one window leaving its Space must not black out the display holding the other.
+/// Pure so the grace can be tested without a window server.
+public func heldHoles(_ ids: [CGWindowID], live: [CGWindowID: CGRect],
+                      seen: inout [CGWindowID: (hole: CGRect, at: Date)],
+                      now: Date, grace: TimeInterval) -> [CGRect] {
+    ids.compactMap { id in
+        if let hole = live[id] {
+            seen[id] = (hole, now)
+            return hole
+        }
+        guard let last = seen[id], now.timeIntervalSince(last.at) < grace else { return nil }
+        return last.hole
+    }
+}

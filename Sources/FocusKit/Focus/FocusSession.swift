@@ -10,9 +10,10 @@ let tickInterval: TimeInterval = 1.0 / 30
 /// 30 Hz of them cost ~8% of a core — the countdown needs the other ticks, tracking does not.
 let trackInterval: TimeInterval = 1.0 / 10
 
-/// CG reports no bounds while a window animates into or out of full screen. Without this
-/// grace the screen blacks out for the length of that animation.
-let lostGrace: TimeInterval = 1.0
+/// CGWindowList reports no bounds for a window that is not on the active Space, which a
+/// full-screen animation and a hop to another Desktop both look like. Without this grace
+/// the display blacks out for the length of the animation, or for every desktop switch.
+let lostGrace: TimeInterval = 2.0
 
 /// Flush interval for the day total. A crash costs at most this much, and crediting
 /// "now" rather than the session start is what splits a session across midnight.
@@ -63,7 +64,8 @@ public final class FocusSession: ObservableObject {
     private var lastTick = Date()
     private var unflushed: Double = 0
     private var holes: [CGRect] = []
-    private var lastLiveAt = Date()
+    /// Last known hole per pinned window, and when CGWindowList last actually reported it.
+    private var seen: [CGWindowID: (hole: CGRect, at: Date)] = [:]
     private var awaySince: Date?
     private var lastNudgeAt: Date?
     private var log: AttentionLog?
@@ -117,7 +119,7 @@ public final class FocusSession: ObservableObject {
         onBreak = false
         lostTargets = false
         endsAt = minutes > 0 ? now.addingTimeInterval(Double(minutes) * 60) : nil
-        lastLiveAt = now
+        seen = [:]
         awaySince = nil
         lastNudgeAt = nil
         peekUntil = nil
@@ -223,22 +225,15 @@ public final class FocusSession: ObservableObject {
 
     private func refreshHoles(_ now: Date) {
         let top = NSScreen.screens.first?.frame.maxY ?? 0
-        let live = targets.compactMap { WindowTracker.bounds(of: $0.id) }
-            .map { cocoaRect($0, screenTop: top) }
-
-        var lost = lostTargets
-        if !live.isEmpty {
-            holes = live
-            lastLiveAt = now
-            lost = false
-        } else if now.timeIntervalSince(lastLiveAt) >= lostGrace {
-            // Inside the grace the last known holes stand: the window is most likely
-            // mid-animation rather than gone.
-            holes = []
-            lost = true
+        var live: [CGWindowID: CGRect] = [:]
+        for target in targets {
+            guard let cg = WindowTracker.bounds(of: target.id) else { continue }
+            live[target.id] = cocoaRect(cg, screenTop: top)
         }
+        holes = heldHoles(targets.map(\.id), live: live, seen: &seen, now: now, grace: lostGrace)
         // Assigning a @Published every tick republishes even when nothing changed,
         // which re-renders the open panel 30 times a second.
+        let lost = holes.isEmpty
         if lost != lostTargets { lostTargets = lost }
     }
 

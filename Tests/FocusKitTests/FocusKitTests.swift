@@ -113,6 +113,50 @@ final class NudgeTests: XCTestCase {
     }
 }
 
+final class HeldHoleTests: XCTestCase {
+    private let a = CGRect(x: 0, y: 0, width: 800, height: 600)
+    private let b = CGRect(x: 2000, y: 0, width: 800, height: 600)
+    private let t0 = Date()
+
+    func testVisibleWindowsPunchTheirOwnHoles() {
+        var seen: [CGWindowID: (hole: CGRect, at: Date)] = [:]
+        XCTAssertEqual(heldHoles([1, 2], live: [1: a, 2: b], seen: &seen, now: t0, grace: 2), [a, b])
+    }
+
+    /// The bug this exists for: one window hopping to another Desktop used to drop its
+    /// hole at once, blacking out the display it was on while the other stayed lit.
+    func testOneWindowLeavingKeepsItsHoleThroughTheGrace() {
+        var seen: [CGWindowID: (hole: CGRect, at: Date)] = [:]
+        _ = heldHoles([1, 2], live: [1: a, 2: b], seen: &seen, now: t0, grace: 2)
+        let during = heldHoles([1, 2], live: [2: b], seen: &seen,
+                               now: t0.addingTimeInterval(1.9), grace: 2)
+        XCTAssertEqual(during, [a, b])
+    }
+
+    func testTheHoleIsDroppedOnceTheGraceIsPast() {
+        var seen: [CGWindowID: (hole: CGRect, at: Date)] = [:]
+        _ = heldHoles([1, 2], live: [1: a, 2: b], seen: &seen, now: t0, grace: 2)
+        let after = heldHoles([1, 2], live: [2: b], seen: &seen,
+                              now: t0.addingTimeInterval(2), grace: 2)
+        XCTAssertEqual(after, [b])
+    }
+
+    /// Switching back and forth must not spend the grace: each sighting restarts it.
+    func testComingBackRestartsTheGrace() {
+        var seen: [CGWindowID: (hole: CGRect, at: Date)] = [:]
+        _ = heldHoles([1], live: [1: a], seen: &seen, now: t0, grace: 2)
+        _ = heldHoles([1], live: [:], seen: &seen, now: t0.addingTimeInterval(1.5), grace: 2)
+        _ = heldHoles([1], live: [1: a], seen: &seen, now: t0.addingTimeInterval(1.6), grace: 2)
+        XCTAssertEqual(heldHoles([1], live: [:], seen: &seen,
+                                 now: t0.addingTimeInterval(3.5), grace: 2), [a])
+    }
+
+    func testAWindowNeverSeenHasNoHole() {
+        var seen: [CGWindowID: (hole: CGRect, at: Date)] = [:]
+        XCTAssertEqual(heldHoles([1], live: [:], seen: &seen, now: t0, grace: 2), [])
+    }
+}
+
 final class ScreenPickTests: XCTestCase {
     /// Roughly this machine: a laptop at the origin with two displays above it.
     private let frames = [

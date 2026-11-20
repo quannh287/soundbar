@@ -21,6 +21,10 @@ does; this file keeps the reasoning.
   screen capture. It has to: a DisplayLink monitor, which is what a dual-HDMI USB-C hub
   drives on Apple silicon, is painted from a capture of a virtual display, so a window
   that opts out of capture never appears on that screen at all.
+- **Switching Desktop does not black the display out.** `CGWindowList` reports no bounds
+  for a window on an inactive Space, which is indistinguishable from a closed one, so each
+  pinned window holds its last known hole for two seconds — per window, not for the set,
+  or one window hopping Desktop would dim the display still holding the other.
 - **Full-screen windows** live on their own Space, which the overlay deliberately does
   not join — joining it blacks the display out.
 

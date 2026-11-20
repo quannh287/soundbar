@@ -49,7 +49,10 @@ public enum WindowTracker {
 
     public static func frontmost() -> WindowInfo? { onScreen().first }
 
-    /// nil once the window is closed or minimised — CGWindowList cannot tell those apart.
+    /// nil whenever the window is not on the active Space: closed, minimised, hidden, on
+    /// another Desktop, or mid-full-screen-animation. CGWindowList cannot tell them apart,
+    /// so the caller holds the last known bounds for a grace rather than treating a
+    /// desktop switch as a closed window.
     public static func bounds(of id: CGWindowID) -> CGRect? {
         let raw = CGWindowListCopyWindowInfo([.optionIncludingWindow], id) as? [[String: Any]] ?? []
         guard let dict = raw.first?[kCGWindowBounds as String] as? [String: Any] else { return nil }
