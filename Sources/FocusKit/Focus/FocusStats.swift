@@ -34,13 +34,15 @@ public enum FocusStats {
         UserDefaults.standard.set(add(seconds, to: load(), now: now), forKey: defaultsKey)
     }
 
-    /// Oldest first, gaps filled with zero so the bar strip never shifts its columns.
-    public static func lastDays(_ n: Int,
-                                from store: [String: Double],
-                                now: Date = Date()) -> [(day: Date, seconds: Double)] {
-        let cal = Calendar.current
-        return (0 ..< n).reversed().compactMap { back in
-            guard let day = cal.date(byAdding: .day, value: -back, to: now) else { return nil }
+    /// Monday through Sunday of the week `now` falls in, gaps filled with zero. Monday is
+    /// forced rather than taken from the locale, so a day keeps its column on any region.
+    public static func week(from store: [String: Double],
+                            now: Date = Date()) -> [(day: Date, seconds: Double)] {
+        var cal = Calendar.current
+        cal.firstWeekday = 2
+        guard let monday = cal.dateInterval(of: .weekOfYear, for: now)?.start else { return [] }
+        return (0 ..< 7).compactMap { offset in
+            guard let day = cal.date(byAdding: .day, value: offset, to: monday) else { return nil }
             return (day, store[dayKey(day)] ?? 0)
         }
     }

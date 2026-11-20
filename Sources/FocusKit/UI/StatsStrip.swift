@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Seven bars and a total. Enough to answer "how am I doing this week" without a
+/// Monday to Sunday and a total. Enough to answer "how am I doing this week" without a
 /// charting dependency, and it costs one UserDefaults read per panel open.
 struct StatsStrip: View {
     let today: Double
@@ -16,7 +16,7 @@ struct StatsStrip: View {
     }()
 
     private var days: [(day: Date, seconds: Double)] {
-        FocusStats.lastDays(7, from: FocusStats.load())
+        FocusStats.week(from: FocusStats.load())
     }
 
     var body: some View {
@@ -34,9 +34,8 @@ struct StatsStrip: View {
                     .font(.footnote).foregroundStyle(.tertiary)
             } else {
                 HStack(alignment: .bottom, spacing: 4) {
-                    ForEach(data.indices, id: \.self) { i in
-                        let entry = data[i]
-                        let isToday = i == data.count - 1
+                    ForEach(data, id: \.day) { entry in
+                        let isToday = Calendar.current.isDateInToday(entry.day)
                         VStack(spacing: 2) {
                             Capsule()
                                 .fill(Palette.accent.opacity(entry.seconds > 0 ? 0.7 : 0.18))

@@ -73,12 +73,18 @@ final class FocusStatsTests: XCTestCase {
     }
 
     /// Gaps must come back as zeros, or the bar strip would shift its columns around.
-    func testLastDaysFillsGaps() {
+    /// Asserted by day key rather than by index: which column `noon` lands in depends on
+    /// the machine's time zone, and CI runs in UTC while the app runs in local time.
+    func testWeekIsMondayToSundayAndFillsGaps() {
         let store = [FocusStats.dayKey(noon): 120.0]
-        let week = FocusStats.lastDays(7, from: store, now: noon)
+        let week = FocusStats.week(from: store, now: noon)
+        var cal = Calendar.current
+        cal.firstWeekday = 2
         XCTAssertEqual(week.count, 7)
-        XCTAssertEqual(week.last?.seconds, 120)
-        XCTAssertEqual(week.dropLast().map(\.seconds), Array(repeating: 0, count: 6))
+        XCTAssertEqual(cal.component(.weekday, from: week[0].day), 2)
+        XCTAssertEqual(cal.component(.weekday, from: week[6].day), 1)
+        XCTAssertEqual(week.map(\.seconds).reduce(0, +), 120)
+        XCTAssertEqual(week.first { FocusStats.dayKey($0.day) == FocusStats.dayKey(noon) }?.seconds, 120)
     }
 }
 
