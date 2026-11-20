@@ -38,6 +38,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshStatus()
     }
 
+    /// soundbar://preset/Deep%20Work, soundbar://shuffle, soundbar://stop — one hook that
+    /// Shortcuts, Raycast and anything else able to open a URL can drive.
+    public func application(_: NSApplication, open urls: [URL]) {
+        for url in urls {
+            let arg = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            switch url.host {
+            case "preset":
+                guard let preset = mixer.presets.first(where: {
+                    $0.name.compare(arg, options: .caseInsensitive) == .orderedSame
+                }) else { continue }
+                mixer.apply(preset)
+            case "shuffle": mixer.shuffle()
+            case "stop": mixer.stopAll()
+            default: continue
+            }
+        }
+    }
+
     /// Quitting mid-session otherwise drops the whole log line and up to a minute of
     /// unflushed stats. A no-op when nothing is running.
     public func applicationWillTerminate(_: Notification) { session.stop(ended: "quit") }

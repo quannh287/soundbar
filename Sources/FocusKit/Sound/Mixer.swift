@@ -67,15 +67,24 @@ public final class Mixer: NSObject, ObservableObject {
         // Touching a sound by hand is a decision; the rotation stops arguing with it.
         setAuto(nil)
         guard isOn(s.name) else { return enable(s, volume: 0.8) }
-        mix[s.name] = nil
-        engine.remove(s.name)
-        persist()
+        var next = mix
+        next[s.name] = nil
+        transition(to: next, seconds: 0.4)
     }
 
     fileprivate func enable(_ s: Sound, volume: Float) {
         guard !localFiles(s.name).isEmpty else { return download(s, volume: volume) }
-        mix[s.name] = volume
-        engine.add(s.name, volume: volume)
+        var next = mix
+        next[s.name] = volume
+        transition(to: next, seconds: 0.4)
+    }
+
+    /// Every mix change ramps: a hard cut on an ambient bed is an audible seam, and
+    /// AVAudioPlayerNode.stop() clicks on its own.
+    private func transition(to target: [String: Float], seconds: Double) {
+        engine.master = master
+        engine.crossfade(to: target, seconds: seconds)
+        mix = target
         persist()
     }
 
@@ -83,11 +92,13 @@ public final class Mixer: NSObject, ObservableObject {
 
     public func apply(_ preset: Preset) {
         setAuto(nil)
-        stopAll()
+        var target: [String: Float] = [:]
         for (name, volume) in preset.mix {
             guard let s = catalog.first(where: { $0.name == name }) else { continue }
-            enable(s, volume: volume)
+            // Anything not on disk joins the mix later, when its download lands.
+            if localFiles(name).isEmpty { download(s, volume: volume) } else { target[name] = volume }
         }
+        transition(to: target, seconds: 1.5)
     }
 
     public func savePreset(_ name: String) {
@@ -153,11 +164,9 @@ public final class Mixer: NSObject, ObservableObject {
         autoTimer = nil
         autoEvery = nil
         autoNext = nil
-        engine.stopAll()
-        mix.removeAll()
         muteAt = nil
         timer?.invalidate()
-        persist()
+        transition(to: [:], seconds: 0.5)
     }
 
     private func persist() {
@@ -197,11 +206,8 @@ public final class Mixer: NSObject, ObservableObject {
     /// fetch on its own would be a nasty surprise on a metered connection.
     public func shuffle() {
         guard let next = Preset.deal(from: downloaded, avoiding: mix) else { return }
-        engine.master = master
-        engine.crossfade(to: next, seconds: 2)
-        mix = next
+        transition(to: next, seconds: 2)
         if let autoEvery { autoNext = Date().addingTimeInterval(Double(autoEvery) * 60) }
-        persist()
     }
 
     public var canAuto: Bool { !Preset.beds.filter(downloaded.contains).isEmpty }

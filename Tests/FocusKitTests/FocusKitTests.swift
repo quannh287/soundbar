@@ -249,3 +249,23 @@ final class CountdownTests: XCTestCase {
         XCTAssertEqual(countdown(3600 + 60), "1h 1m")
     }
 }
+
+final class PresetHintTests: XCTestCase {
+    private func hint(at hour: Int) -> String {
+        var parts = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        parts.hour = hour
+        return Preset.suggested(at: Calendar.current.date(from: parts)!)
+    }
+
+    func testEveryHourNamesABuiltin() {
+        let names = Set(Preset.builtin.map(\.name))
+        for hour in 0 ..< 24 { XCTAssertTrue(names.contains(hint(at: hour)), "hour \(hour)") }
+    }
+
+    func testTheWorkingDayAndTheNight() {
+        XCTAssertEqual(hint(at: 7), "Cafe")
+        XCTAssertEqual(hint(at: 14), "Deep Work")
+        XCTAssertEqual(hint(at: 20), "Cozy")
+        XCTAssertEqual(hint(at: 2), "Sleep")
+    }
+}

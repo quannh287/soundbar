@@ -72,8 +72,6 @@ final class Engine {
         fade = timer
     }
 
-    func stopAll() { for name in nodes.keys { remove(name) } }
-
     /// Apple ships each sound as interchangeable variations; shuffling them avoids an
     /// audible loop point. Two are always queued so the seam has no gap.
     private func schedule(_ name: String, count: Int) {

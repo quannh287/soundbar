@@ -47,6 +47,17 @@ public struct Preset: Identifiable, Hashable {
         Preset(name: "Flight", mix: ["Airplane": 0.6, "PinkNoise": 0.25], builtin: true),
     ]
 
+    /// The built-in the clock points at. A hint the panel tints only — nothing auto-applies,
+    /// because a mix that changes itself while you work is the thing people disable first.
+    public static func suggested(at date: Date = Date()) -> String {
+        switch Calendar.current.component(.hour, from: date) {
+        case 6 ..< 9: return "Cafe"
+        case 9 ..< 18: return "Deep Work"
+        case 18 ..< 22: return "Cozy"
+        default: return "Sleep"
+        }
+    }
+
     /// Auto mode deals the same shape the built-ins have rather than picking at random:
     /// a bed is broad enough to sit under something, a texture is sparse enough to sit on
     /// top, and two of either kind at once just fight each other.

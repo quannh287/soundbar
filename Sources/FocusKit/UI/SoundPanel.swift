@@ -52,14 +52,18 @@ struct Tile: View {
 
 struct PresetChip: View {
     let preset: Preset
+    var active = false
+    var suggested = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(preset.name).font(.callout.weight(.medium))
         }
-        .buttonStyle(PanelButton(shape: Capsule(), raised: !preset.builtin))
-        .help("Play the \(preset.name) mix")
+        .buttonStyle(PanelButton(shape: Capsule(), on: active, raised: !preset.builtin))
+        .overlay { if suggested, !active { Capsule().strokeBorder(Palette.accent.opacity(0.45)) } }
+        .help(suggested ? "Play the \(preset.name) mix — suits the hour"
+                        : "Play the \(preset.name) mix")
     }
 }
 /// Chips wrap instead of scrolling. A horizontal ScrollView needs a horizontal gesture
@@ -107,6 +111,7 @@ struct Presets: View {
     @State private var renaming: String?
     @State private var typing = false
     @State private var draft = ""
+    private let hint = Preset.suggested()
 
     var body: some View {
         VStack(spacing: 6) {
@@ -133,7 +138,8 @@ struct Presets: View {
                     : "Download a sound first")
 
                 ForEach(mixer.presets) { preset in
-                    PresetChip(preset: preset) { mixer.apply(preset) }
+                    PresetChip(preset: preset, active: mixer.mix == preset.mix,
+                               suggested: preset.name == hint) { mixer.apply(preset) }
                         .contextMenu { menu(for: preset) }
                 }
                 Button { startTyping(renaming: nil) } label: {

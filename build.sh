@@ -22,6 +22,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLName</key><string>local.soundbar</string>
+    <key>CFBundleURLSchemes</key><array><string>soundbar</string></array>
+  </dict></array>
 </dict></plist>
 PLIST
 codesign -s - --force --deep "$APP"
