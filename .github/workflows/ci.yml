@@ -5,9 +5,20 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # A release PR carries exactly these three files and no code, so it needs no run at
+    # all. Push stays unfiltered: merging that PR is what publishes the release.
+    paths-ignore: [CHANGELOG.md, version.txt, .release-please-manifest.json]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Never on main: a cancelled push run can kill release-please mid-publish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
+    # The release merge carries those same three files; the tree it ships already went
+    # green on the commit it was cut from.
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore(main): release') }}"
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -17,7 +28,9 @@ jobs:
 
   release:
     needs: build
-    if: github.event_name == 'push'
+    # `always` but for failure: build is skipped on a release merge, and a skipped
+    # dependency would otherwise take the release down with it.
+    if: ${{ !cancelled() && needs.build.result != 'failure' && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
