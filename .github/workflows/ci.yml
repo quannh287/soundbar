@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: swift test
+      # build.sh is what the Homebrew formula runs verbatim; green here means the formula installs.
+      - run: ./build.sh
+
+  release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - uses: actions/checkout@v5
+        if: steps.rp.outputs.release_created
+        with:
+          repository: quannh287/homebrew-tap
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+
+      - if: steps.rp.outputs.release_created
+        env:
+          TAG: ${{ steps.rp.outputs.tag_name }}
+        run: |
+          set -eo pipefail
+          url="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
+          sha=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)
+          cd tap
+          sed -i -e "s|refs/tags/v[^\"]*|refs/tags/${TAG}.tar.gz|" \
+                 -e "s|sha256 \"[0-9a-f]*\"|sha256 \"${sha}\"|" Formula/soundbar.rb
+          git diff --exit-code && { echo "formula unchanged"; exit 1; }
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git commit -am "chore: soundbar ${TAG}"
+          git push
