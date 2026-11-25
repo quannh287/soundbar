@@ -9,6 +9,9 @@ public final class Mixer: NSObject, ObservableObject {
     @Published public var progress: [String: Double] = [:]
     @Published public var master: Float = UserDefaults.standard.object(forKey: "master") as? Float ?? 0.7
     @Published public var muteAt: Date?
+    /// Minutes of playback before an automatic mute; nil is off. Persisted, and armed
+    /// on its own whenever a silent mix starts playing.
+    @Published public var muteAfter: Int? = UserDefaults.standard.object(forKey: "muteAfter") as? Int ?? 30
     @Published public var atLogin = SMAppService.mainApp.status == .enabled
     @Published public var downloaded: Set<String> = []
     var onPlayingChange: (() -> Void)?
@@ -85,6 +88,7 @@ public final class Mixer: NSObject, ObservableObject {
         engine.master = master
         engine.crossfade(to: target, seconds: seconds)
         mix = target
+        armDefaultMute()
         persist()
     }
 
@@ -156,6 +160,7 @@ public final class Mixer: NSObject, ObservableObject {
     private func resume() {
         engine.master = master
         for (name, vol) in mix { engine.add(name, volume: vol) }
+        armDefaultMute()
         onPlayingChange?()
     }
 
@@ -215,6 +220,22 @@ public final class Mixer: NSObject, ObservableObject {
     // MARK: timer
 
     public func mute(after minutes: Int?) {
+        muteAfter = minutes
+        UserDefaults.standard.set(minutes, forKey: "muteAfter")
+        arm(minutes)
+    }
+
+    /// Silence counts down on its own: a mix left running is the common case, and
+    /// picking a duration every time is the step people forget.
+    private func armDefaultMute() {
+        guard !mix.isEmpty, muteAt == nil else {
+            if mix.isEmpty { arm(nil) }
+            return
+        }
+        arm(muteAfter)
+    }
+
+    private func arm(_ minutes: Int?) {
         timer?.invalidate()
         guard let minutes else { muteAt = nil; return }
         muteAt = Date().addingTimeInterval(Double(minutes) * 60)
