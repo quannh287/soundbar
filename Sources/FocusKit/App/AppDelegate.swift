@@ -38,7 +38,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshStatus()
     }
 
-    /// soundbar://preset/Deep%20Work, soundbar://shuffle, soundbar://stop — one hook that
+    /// soundbar://preset/Power%20Nap, soundbar://shuffle, soundbar://stop — one hook that
     /// Shortcuts, Raycast and anything else able to open a URL can drive.
     public func application(_: NSApplication, open urls: [URL]) {
         for url in urls {

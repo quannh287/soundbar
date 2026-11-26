@@ -31,7 +31,7 @@ public func selfCheck() {
     precondition(mixer.presets.contains { $0.name == "__renamed" }, "rename did not create the new name")
     precondition(!mixer.presets.contains { $0.name == "__selfcheck" }, "rename left the old name behind")
 
-    mixer.renamePreset("__renamed", to: "Deep Work")
+    mixer.renamePreset("__renamed", to: "Coding & Logic")
     precondition(mixer.presets.contains { $0.name == "__renamed" }, "rename onto a built-in name must be refused")
 
     mixer.deletePreset("__renamed")

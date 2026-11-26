@@ -37,13 +37,14 @@ display dims or blurs; the pinned window stays sharp.
 ## Sounds
 
 - **Mix** several sounds at once, with per-sound volume and a master.
-- **Presets** — six built in (Deep Work, Cafe, Cozy, Sleep, Night, Flight), plus your
+- **Presets** — thirteen built in across work, relax, sleep and travel (Coding & Logic,
+  Rainy Cabin, Power Nap, Long Bus Ride…), plus your
   own: save the current mix from the `+` chip, right-click to update, rename or delete.
 - **Auto** changes the pairing every 5, 15, 30 or 60 minutes with a crossfade.
 - **Every change ramps** — switching preset, toggling a sound and stopping all fade
   instead of cutting. The chip matching the current mix is lit; the one suiting the hour
   is outlined.
-- **Drive it from anywhere** with `soundbar://preset/Deep%20Work`, `soundbar://shuffle`
+- **Drive it from anywhere** with `soundbar://preset/Power%20Nap`, `soundbar://shuffle`
   or `soundbar://stop` — Shortcuts, Raycast or any launcher that can open a URL.
 - **Timer** mutes after 30 or 60 minutes, independent of the focus timer.
 - **Downloads on demand** from Apple, reusing the system's copy when it has one.

@@ -36,25 +36,36 @@ public struct Preset: Identifiable, Hashable {
     var builtin = false
     public var id: String { name }
 
-    /// Every mix is one deep base plus a lighter layer over it — the shape every
-    /// ambient mixer converges on, because two sounds at equal weight fight each other.
+    /// One deep bed plus one or two lighter layers, never more than three: past that the
+    /// layers mask each other and the mix tires the ear.
     public static let builtin: [Preset] = [
-        Preset(name: "Deep Work", mix: ["BrownNoise": 0.7, "Rain": 0.3], builtin: true),
-        Preset(name: "Cafe", mix: ["Babble": 0.5, "Rain": 0.3], builtin: true),
-        Preset(name: "Cozy", mix: ["Fire": 0.55, "RainOnRoof": 0.4], builtin: true),
-        Preset(name: "Sleep", mix: ["Ocean": 0.5, "QuietNight": 0.35], builtin: true),
-        Preset(name: "Night", mix: ["Night": 0.55, "Stream": 0.25], builtin: true),
-        Preset(name: "Flight", mix: ["Airplane": 0.6, "PinkNoise": 0.25], builtin: true),
+        // Work & study
+        Preset(name: "Coding & Logic", mix: ["BrownNoise": 0.5, "Train": 0.2, "Stream": 0.15], builtin: true),
+        Preset(name: "Reading & Study", mix: ["PinkNoise": 0.35, "RainOnRoof": 0.25, "QuietNight": 0.15], builtin: true),
+        Preset(name: "Brainstorming", mix: ["Ocean": 0.35, "Babble": 0.2, "Steam": 0.15], builtin: true),
+        Preset(name: "Noisy Room Masker", mix: ["WhiteNoise": 0.35, "PinkNoise": 0.35, "Rain": 0.25], builtin: true),
+        // Relax
+        Preset(name: "Rainy Cabin", mix: ["RainOnRoof": 0.45, "Fire": 0.3, "BrownNoise": 0.2], builtin: true),
+        Preset(name: "Coastal Breeze", mix: ["Ocean": 0.45, "Boat": 0.15, "Night": 0.15], builtin: true),
+        Preset(name: "Forest Creek", mix: ["Stream": 0.45, "Night": 0.25, "PinkNoise": 0.15], builtin: true),
+        Preset(name: "Slow Sunday", mix: ["Babble": 0.2, "Stream": 0.25, "Fire": 0.2], builtin: true),
+        // Sleep
+        Preset(name: "Power Nap", mix: ["BrownNoise": 0.55, "Rain": 0.25], builtin: true),
+        Preset(name: "Deep Insomnia", mix: ["BrownNoise": 0.45, "QuietNight": 0.35, "Ocean": 0.2], builtin: true),
+        Preset(name: "Night Train Lullaby", mix: ["Train": 0.3, "BrownNoise": 0.35, "QuietNight": 0.2], builtin: true),
+        // Travel
+        Preset(name: "Long Bus Ride", mix: ["Bus": 0.4, "BrownNoise": 0.3, "Rain": 0.15], builtin: true),
+        Preset(name: "Harbor & Ferry", mix: ["Boat": 0.35, "Ocean": 0.35, "Stream": 0.15], builtin: true),
     ]
 
     /// The built-in the clock points at. A hint the panel tints only — nothing auto-applies,
     /// because a mix that changes itself while you work is the thing people disable first.
     public static func suggested(at date: Date = Date()) -> String {
         switch Calendar.current.component(.hour, from: date) {
-        case 6 ..< 9: return "Cafe"
-        case 9 ..< 18: return "Deep Work"
-        case 18 ..< 22: return "Cozy"
-        default: return "Sleep"
+        case 6 ..< 9: return "Slow Sunday"
+        case 9 ..< 18: return "Coding & Logic"
+        case 18 ..< 22: return "Rainy Cabin"
+        default: return "Deep Insomnia"
         }
     }
 

@@ -313,9 +313,9 @@ final class PresetHintTests: XCTestCase {
     }
 
     func testTheWorkingDayAndTheNight() {
-        XCTAssertEqual(hint(at: 7), "Cafe")
-        XCTAssertEqual(hint(at: 14), "Deep Work")
-        XCTAssertEqual(hint(at: 20), "Cozy")
-        XCTAssertEqual(hint(at: 2), "Sleep")
+        XCTAssertEqual(hint(at: 7), "Slow Sunday")
+        XCTAssertEqual(hint(at: 14), "Coding & Logic")
+        XCTAssertEqual(hint(at: 20), "Rainy Cabin")
+        XCTAssertEqual(hint(at: 2), "Deep Insomnia")
     }
 }
