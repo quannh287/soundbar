@@ -60,6 +60,10 @@ struct FocusPanel: View {
             }
             .font(.subheadline)
 
+            Toggle("Clear its whole display, not just the window", isOn: $session.wholeDisplay)
+                .toggleStyle(.checkbox)
+                .font(.subheadline)
+
             Toggle("Full screen while focusing", isOn: $session.fullScreen)
                 .toggleStyle(.checkbox)
                 .font(.subheadline)
@@ -78,6 +82,7 @@ struct FocusPanel: View {
         .onChange(of: session.nudgeGrace) { _ in session.persist() }
         .onChange(of: session.minutes) { _ in session.persist() }
         .onChange(of: session.pomodoro) { _ in session.persist() }
+        .onChange(of: session.wholeDisplay) { _ in session.persist() }
         .onChange(of: session.fullScreen) { _ in
             session.persist()
             session.requestFullScreenAccess()
@@ -119,7 +124,8 @@ struct FocusPanel: View {
             }
 
             if session.lostTargets {
-                Label("Pinned window is gone", systemImage: "exclamationmark.triangle")
+                Label(session.wholeDisplay ? "Focused display is gone" : "Pinned window is gone",
+                      systemImage: "exclamationmark.triangle")
                     .font(.footnote).foregroundStyle(Palette.warning)
             }
 
@@ -141,16 +147,21 @@ struct FocusPanel: View {
 
     @ViewBuilder private var working: some View {
         VStack(alignment: .leading, spacing: 9) {
-            ForEach(session.targets, id: \.id) { target in
-                HStack(spacing: 5) {
-                    Image(systemName: "macwindow").font(.footnote)
-                    Text(target.label).font(.subheadline).lineLimit(1)
-                    Spacer()
-                    if session.targets.count > 1 {
-                        Button { session.drop(target.id) } label: {
-                            Image(systemName: "xmark.circle.fill").font(.footnote)
+            if session.wholeDisplay {
+                Label(session.focusedDisplayName ?? "Display", systemImage: "display")
+                    .font(.subheadline).lineLimit(1)
+            } else {
+                ForEach(session.targets, id: \.id) { target in
+                    HStack(spacing: 5) {
+                        Image(systemName: "macwindow").font(.footnote)
+                        Text(target.label).font(.subheadline).lineLimit(1)
+                        Spacer()
+                        if session.targets.count > 1 {
+                            Button { session.drop(target.id) } label: {
+                                Image(systemName: "xmark.circle.fill").font(.footnote)
+                            }
+                            .buttonStyle(.plain).foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -158,14 +169,16 @@ struct FocusPanel: View {
             effects
 
             HStack(spacing: 8) {
-                Menu("Add window") {
-                    ForEach(session.candidates.filter { choice in
-                        !session.targets.contains { $0.id == choice.id }
-                    }) { choice in
-                        Button(choice.label) { session.add(choice.window) }
+                if !session.wholeDisplay {
+                    Menu("Add window") {
+                        ForEach(session.candidates.filter { choice in
+                            !session.targets.contains { $0.id == choice.id }
+                        }) { choice in
+                            Button(choice.label) { session.add(choice.window) }
+                        }
                     }
+                    .menuStyle(.borderlessButton).fixedSize()
                 }
-                .menuStyle(.borderlessButton).fixedSize()
                 Button("Peek 10s") { session.peek() }
                 Spacer()
             }

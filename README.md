@@ -27,6 +27,9 @@ display dims or blurs; the pinned window stays sharp.
 - **A shove when you drift.** Stay on another window past the grace period (5, 15 or
   30 seconds) and the dim jolts, while the pinned window flashes its outline.
 - **Add a second window** to keep something beside the pinned one without a warning.
+- **Clear its whole display** keeps the pinned window's monitor fully clear and dims
+  only the others; any window on that monitor counts as focus, and Desktop switches
+  leave no dark trail.
 - **Peek** lifts the dim for 10 seconds.
 - **Pomodoro** runs block → break → block on its own: a 5-minute break after each
   block, 15 after every fourth. Breaks are undimmed and not counted as focus.

@@ -47,6 +47,11 @@ public final class FocusSession: ObservableObject {
     /// Work blocks finished in this session, which is what picks the next break's length.
     @Published public private(set) var round = 0
 
+    /// Clears the pinned window's whole display instead of punching a window-shaped hole:
+    /// a display frame never vanishes on a Desktop switch, so nothing trails the animation.
+    @Published public var wholeDisplay = UserDefaults.standard.bool(forKey: "focusWholeDisplay")
+    @Published public private(set) var focusedDisplayName: String?
+
     @Published public var fullScreen = UserDefaults.standard.bool(forKey: "focusFullScreen")
     /// Full screen was asked for and Accessibility is not granted to this build.
     @Published public private(set) var fullScreenBlocked = false
@@ -56,6 +61,7 @@ public final class FocusSession: ObservableObject {
     private let mixer: Mixer
     private var overlays: [FocusOverlay] = []
     private var fullScreened: AXUIElement?
+    private var focusedDisplay: CGDirectDisplayID?
     private var tick: Timer?
     private var lastTrack = Date.distantPast
     private var peekUntil: Date?
@@ -87,6 +93,10 @@ public final class FocusSession: ObservableObject {
     public func start() {
         guard !running, let first = candidate ?? WindowTracker.frontmost() else { return }
         targets = [first]
+        let held = screen(mostlyHolding: WindowTracker.bounds(of: first.id) ?? first.bounds)
+            ?? NSScreen.main
+        focusedDisplay = held?.displayID
+        focusedDisplayName = held?.localizedName
         if let name = presetName, let preset = mixer.presets.first(where: { $0.name == name }) {
             mixer.apply(preset)
         }
@@ -170,6 +180,8 @@ public final class FocusSession: ObservableObject {
         overlays.forEach { $0.retire() }
         overlays = []
         targets = []
+        focusedDisplay = nil
+        focusedDisplayName = nil
         holes = []
         running = false
         endsAt = nil
@@ -224,6 +236,12 @@ public final class FocusSession: ObservableObject {
     }
 
     private func refreshHoles(_ now: Date) {
+        if wholeDisplay {
+            holes = NSScreen.screens.first { $0.displayID == focusedDisplay }.map { [$0.frame] } ?? []
+            let lost = holes.isEmpty
+            if lost != lostTargets { lostTargets = lost }
+            return
+        }
         let top = NSScreen.screens.first?.frame.maxY ?? 0
         var live: [CGWindowID: CGRect] = [:]
         for target in targets {
@@ -242,8 +260,7 @@ public final class FocusSession: ObservableObject {
         let frozen = lostTargets || popoverOpen || peekUntil != nil || NSApp.isActive
         let place: AttentionLog.Place = {
             guard !frozen, let front else { return .unknown }
-            guard !targets.contains(where: { $0.id == front.id }), !inFullScreenTarget(front)
-            else { return .target }
+            guard !onTarget(front) else { return .target }
             return .away(appName(front.pid))
         }()
         // Sampled before the grace: a glance too short to nudge is still a switch, and
@@ -270,6 +287,11 @@ public final class FocusSession: ObservableObject {
     /// does not happen with a session already counting down.
     public func requestFullScreenAccess() {
         if fullScreen { _ = FullScreen.trusted(prompt: true) }
+    }
+
+    private func onTarget(_ front: WindowInfo) -> Bool {
+        if wholeDisplay { return screen(mostlyHolding: front.bounds)?.displayID == focusedDisplay }
+        return targets.contains { $0.id == front.id } || inFullScreenTarget(front)
     }
 
     private func inFullScreenTarget(_ front: WindowInfo) -> Bool {
@@ -378,6 +400,7 @@ public final class FocusSession: ObservableObject {
         d.set(intensity, forKey: "focusIntensity")
         d.set(nudgeGrace, forKey: "focusGrace")
         d.set(fullScreen, forKey: "focusFullScreen")
+        d.set(wholeDisplay, forKey: "focusWholeDisplay")
         d.set(pomodoro, forKey: "focusPomodoro")
     }
 }

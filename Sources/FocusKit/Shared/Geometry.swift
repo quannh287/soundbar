@@ -34,6 +34,13 @@ public func screen(mostlyHolding cg: CGRect) -> NSScreen? {
     return indexOfMostOverlap(rect, in: screens.map(\.frame)).map { screens[$0] }
 }
 
+extension NSScreen {
+    /// Survives a display rearrangement, unlike the NSScreen object or its frame.
+    var displayID: CGDirectDisplayID? {
+        deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+    }
+}
+
 /// Counting down, not up: under a minute it falls to seconds, so the tail of a short
 /// break does not sit on "0m" for sixty seconds.
 public func countdown(_ seconds: Double) -> String {
