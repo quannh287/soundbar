@@ -44,8 +44,9 @@ final class Engine {
 
     /// Swapping the mix outright is a hard cut every rotation, which is exactly the kind
     /// of audible seam the shuffling above exists to avoid. Ramps both directions at once.
-    func crossfade(to target: [String: Float], seconds: Double) {
+    func crossfade(to target: [String: Float], master toMaster: Float? = nil, seconds: Double) {
         fade?.invalidate()
+        let fromMaster = master
         var from: [String: Float] = [:]
         for name in Set(nodes.keys).union(target.keys) {
             from[name] = nodes[name]?.volume ?? 0
@@ -62,6 +63,7 @@ final class Engine {
                     let end = target[name] ?? 0
                     self.setVolume(name, start + (end - start) * progress)
                 }
+                if let toMaster { self.master = fromMaster + (toMaster - fromMaster) * progress }
                 guard step >= steps else { return }
                 t.invalidate()
                 self.fade = nil

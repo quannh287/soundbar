@@ -84,9 +84,10 @@ public final class Mixer: NSObject, ObservableObject {
 
     /// Every mix change ramps: a hard cut on an ambient bed is an audible seam, and
     /// AVAudioPlayerNode.stop() clicks on its own.
-    private func transition(to target: [String: Float], seconds: Double) {
+    private func transition(to target: [String: Float], master toMaster: Float? = nil, seconds: Double) {
         engine.master = master
-        engine.crossfade(to: target, seconds: seconds)
+        engine.crossfade(to: target, master: toMaster, seconds: seconds)
+        if let toMaster { master = toMaster }
         mix = target
         armDefaultMute()
         persist()
@@ -102,14 +103,14 @@ public final class Mixer: NSObject, ObservableObject {
             // Anything not on disk joins the mix later, when its download lands.
             if localFiles(name).isEmpty { download(s, volume: volume) } else { target[name] = volume }
         }
-        transition(to: target, seconds: 1.5)
+        transition(to: target, master: preset.master, seconds: 1.5)
     }
 
     public func savePreset(_ name: String) {
         let clean = name.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty, !mix.isEmpty, !Preset.builtin.contains(where: { $0.name == clean }) else { return }
         var stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
-        stored[clean] = mix.mapValues { Double($0) }
+        stored[clean] = mix.mapValues { Double($0) }.merging([Self.masterKey: Double(master)]) { $1 }
         UserDefaults.standard.set(stored, forKey: "presets")
         loadPresets()
     }
@@ -139,9 +140,16 @@ public final class Mixer: NSObject, ObservableObject {
         downloaded = Set(catalog.map(\.name).filter { !localFiles($0).isEmpty })
     }
 
+    /// Rides inside the stored mix so presets saved before it existed still load unchanged.
+    static let masterKey = "_master"
+
     private func loadPresets() {
         let stored = UserDefaults.standard.dictionary(forKey: "presets") as? [String: [String: Double]] ?? [:]
-        userPresets = stored.keys.sorted().map { Preset(name: $0, mix: stored[$0]!.mapValues { Float($0) }) }
+        userPresets = stored.keys.sorted().map {
+            var mix = stored[$0]!.mapValues { Float($0) }
+            let master = mix.removeValue(forKey: Self.masterKey)
+            return Preset(name: $0, mix: mix, master: master)
+        }
     }
 
     public func setVolume(_ name: String, _ v: Float) {

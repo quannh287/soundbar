@@ -33,6 +33,8 @@ public struct Sound: Identifiable, Hashable, Sendable {
 public struct Preset: Identifiable, Hashable {
     public let name: String
     let mix: [String: Float]
+    /// nil leaves the master where it is — user presets saved before master was stored.
+    var master: Float? = nil
     var builtin = false
     public var id: String { name }
 
@@ -40,22 +42,22 @@ public struct Preset: Identifiable, Hashable {
     /// layers mask each other and the mix tires the ear.
     public static let builtin: [Preset] = [
         // Work & study
-        Preset(name: "Coding & Logic", mix: ["BrownNoise": 0.5, "Train": 0.2, "Stream": 0.15], builtin: true),
-        Preset(name: "Reading & Study", mix: ["PinkNoise": 0.35, "RainOnRoof": 0.25, "QuietNight": 0.15], builtin: true),
-        Preset(name: "Brainstorming", mix: ["Ocean": 0.35, "Babble": 0.2, "Steam": 0.15], builtin: true),
-        Preset(name: "Noisy Room Masker", mix: ["WhiteNoise": 0.35, "PinkNoise": 0.35, "Rain": 0.25], builtin: true),
+        Preset(name: "Coding & Logic", mix: ["BrownNoise": 0.5, "Train": 0.2, "Stream": 0.15], master: 0.45, builtin: true),
+        Preset(name: "Reading & Study", mix: ["PinkNoise": 0.35, "RainOnRoof": 0.25, "QuietNight": 0.15], master: 0.4, builtin: true),
+        Preset(name: "Brainstorming", mix: ["Ocean": 0.35, "Babble": 0.2, "Steam": 0.15], master: 0.5, builtin: true),
+        Preset(name: "Noisy Room Masker", mix: ["WhiteNoise": 0.35, "PinkNoise": 0.35, "Rain": 0.25], master: 0.55, builtin: true),
         // Relax
-        Preset(name: "Rainy Cabin", mix: ["RainOnRoof": 0.45, "Fire": 0.3, "BrownNoise": 0.2], builtin: true),
-        Preset(name: "Coastal Breeze", mix: ["Ocean": 0.45, "Boat": 0.15, "Night": 0.15], builtin: true),
-        Preset(name: "Forest Creek", mix: ["Stream": 0.45, "Night": 0.25, "PinkNoise": 0.15], builtin: true),
-        Preset(name: "Slow Sunday", mix: ["Babble": 0.2, "Stream": 0.25, "Fire": 0.2], builtin: true),
+        Preset(name: "Rainy Cabin", mix: ["RainOnRoof": 0.45, "Fire": 0.3, "BrownNoise": 0.2], master: 0.45, builtin: true),
+        Preset(name: "Coastal Breeze", mix: ["Ocean": 0.45, "Boat": 0.15, "Night": 0.15], master: 0.45, builtin: true),
+        Preset(name: "Forest Creek", mix: ["Stream": 0.45, "Night": 0.25, "PinkNoise": 0.15], master: 0.4, builtin: true),
+        Preset(name: "Slow Sunday", mix: ["Babble": 0.2, "Stream": 0.25, "Fire": 0.2], master: 0.4, builtin: true),
         // Sleep
-        Preset(name: "Power Nap", mix: ["BrownNoise": 0.55, "Rain": 0.25], builtin: true),
-        Preset(name: "Deep Insomnia", mix: ["BrownNoise": 0.45, "QuietNight": 0.35, "Ocean": 0.2], builtin: true),
-        Preset(name: "Night Train Lullaby", mix: ["Train": 0.3, "BrownNoise": 0.35, "QuietNight": 0.2], builtin: true),
+        Preset(name: "Power Nap", mix: ["BrownNoise": 0.55, "Rain": 0.25], master: 0.35, builtin: true),
+        Preset(name: "Deep Insomnia", mix: ["BrownNoise": 0.45, "QuietNight": 0.35, "Ocean": 0.2], master: 0.25, builtin: true),
+        Preset(name: "Night Train Lullaby", mix: ["Train": 0.3, "BrownNoise": 0.35, "QuietNight": 0.2], master: 0.3, builtin: true),
         // Travel
-        Preset(name: "Long Bus Ride", mix: ["Bus": 0.4, "BrownNoise": 0.3, "Rain": 0.15], builtin: true),
-        Preset(name: "Harbor & Ferry", mix: ["Boat": 0.35, "Ocean": 0.35, "Stream": 0.15], builtin: true),
+        Preset(name: "Long Bus Ride", mix: ["Bus": 0.4, "BrownNoise": 0.3, "Rain": 0.15], master: 0.5, builtin: true),
+        Preset(name: "Harbor & Ferry", mix: ["Boat": 0.35, "Ocean": 0.35, "Stream": 0.15], master: 0.45, builtin: true),
     ]
 
     /// The built-in the clock points at. A hint the panel tints only — nothing auto-applies,

@@ -15,6 +15,7 @@ public func selfCheck() {
             precondition(mixer.catalog.contains { $0.name == name }, "\(preset.name) references unknown \(name)")
             precondition(volume > 0 && volume <= 1, "\(preset.name)/\(name) volume out of range")
         }
+        precondition((preset.master ?? 0) > 0 && preset.master! <= 1, "\(preset.name) master missing or out of range")
     }
 
     let saved = mixer.mix
@@ -26,6 +27,7 @@ public func selfCheck() {
     mixer.savePreset("__selfcheck")
     let updated = mixer.presets.first { $0.name == "__selfcheck" }?.mix
     precondition(updated?.count == 1 && updated?["Ocean"] == 0.9, "update left the old mix behind: \(updated ?? [:])")
+    precondition(mixer.presets.first { $0.name == "__selfcheck" }?.master == mixer.master, "master did not round-trip")
 
     mixer.renamePreset("__selfcheck", to: "__renamed")
     precondition(mixer.presets.contains { $0.name == "__renamed" }, "rename did not create the new name")

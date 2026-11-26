@@ -38,7 +38,7 @@ display dims or blurs; the pinned window stays sharp.
 
 - **Mix** several sounds at once, with per-sound volume and a master.
 - **Presets** — thirteen built in across work, relax, sleep and travel (Coding & Logic,
-  Rainy Cabin, Power Nap, Long Bus Ride…), plus your
+  Rainy Cabin, Power Nap, Long Bus Ride…), each with its own master level, plus your
   own: save the current mix from the `+` chip, right-click to update, rename or delete.
 - **Auto** changes the pairing every 5, 15, 30 or 60 minutes with a crossfade.
 - **Every change ramps** — switching preset, toggling a sound and stopping all fade
